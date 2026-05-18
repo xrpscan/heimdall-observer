@@ -19,9 +19,9 @@ import (
 
 func main() {
 	// This is the root context of the app.
-	// It is canceled in two cases:
-	// 	- If an interruption is detected, or
-	//	- If a fatal error occurs that requires the app to exit.
+	// It should be passed to all services of the app (example: http server, database client).
+	// It is canceled automatically if an interruption is detected.
+	// It should be canceled *manually* by the programmer in case any fatal error occurs.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
