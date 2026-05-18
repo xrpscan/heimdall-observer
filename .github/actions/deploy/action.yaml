@@ -1,0 +1,121 @@
+name: Deploy to Server
+description: Deploy any application to a remote server using Docker
+
+inputs:
+  server_ip:
+    description: IP address of the target server
+    required: true
+  ssh_private_key:
+    description: SSH private key for server access
+    required: true
+  ssh_username:
+    description: SSH username for server access
+    required: true
+  service_name:
+    description: Name of the service (used for container and directory names)
+    required: true
+  network_name:
+    description: Name of the docker network
+    required: true
+  config_json:
+    description: Config JSON object (not the file path)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup SSH key
+      shell: bash
+      run: |
+        echo "Setting up SSH key..."
+        mkdir -p ~/.ssh
+        echo "${{ inputs.ssh_private_key }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -H ${{ inputs.server_ip }} >> ~/.ssh/known_hosts
+
+    - name: Build Docker image
+      shell: bash
+      run: |
+        echo "Building Docker image..."
+        docker build -f Containerfile -t ${{ inputs.service_name }}:latest .
+
+    - name: Save Docker image
+      shell: bash
+      run: |
+        echo "Saving Docker image to tarball..."
+        docker save ${{ inputs.service_name }}:latest | gzip > ${{ inputs.service_name }}-image.tar.gz
+
+    - name: Create config file
+      shell: bash
+      run: |
+        echo "Creating configuration file..."
+        cat > config.json << 'EOF'
+        ${{ inputs.config_json }}
+        EOF
+
+    - name: Copy files to server
+      shell: bash
+      run: |
+        echo "Copying files to server..."
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          ${{ inputs.service_name }}-image.tar.gz config.json \
+          ${{ inputs.ssh_username }}@${{ inputs.server_ip }}:/tmp/
+
+    - name: Deploy on server
+      shell: bash
+      run: |
+        echo "Deploying application on server..."
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          ${{ inputs.ssh_username }}@${{ inputs.server_ip }} << 'EOF'
+
+        # Stop and remove existing container if it exists
+        docker stop ${{ inputs.service_name }} 2>/dev/null || true
+        docker rm ${{ inputs.service_name }} 2>/dev/null || true
+
+        # Remove old image if it exists
+        docker rmi ${{ inputs.service_name }}:latest 2>/dev/null || true
+
+        # Load new image
+        echo "Loading Docker image..."
+        gunzip -c /tmp/${{ inputs.service_name }}-image.tar.gz | docker load
+
+        # Create application directory
+        mkdir -p ~/services/${{ inputs.service_name }}
+        # Create config directory
+        mkdir -p ~/services/${{ inputs.service_name }}/config
+
+        # Move config file to config directory
+        mv /tmp/config.json ~/services/${{ inputs.service_name }}/config/
+
+        # Run new container
+        echo "Starting new container..."
+        docker run \
+          --detach \
+          --name ${{ inputs.service_name }} \
+          --restart unless-stopped \
+          --network ${{ inputs.network_name }} \
+          --volume ~/services/${{ inputs.service_name }}/config/config.json:/service/config/config.json:ro \
+          ${{ inputs.service_name }}:latest
+
+        # Clean up temporary files
+        rm -f /tmp/${{ inputs.service_name }}-image.tar.gz
+
+        # Verify deployment
+        sleep 5
+        if docker ps | grep -q ${{ inputs.service_name }}; then
+          echo "Deployment successful! Container is running."
+          docker ps | grep ${{ inputs.service_name }}
+        else
+          echo "Deployment failed! Container is not running."
+          docker logs ${{ inputs.service_name }}
+          exit 1
+        fi
+        EOF
+
+    - name: Cleanup
+      shell: bash
+      run: |
+        echo "Cleaning up local files..."
+        rm -f ~/.ssh/deploy_key
+        rm -f ${{ inputs.service_name }}-image.tar.gz
+        rm -f config.json

@@ -1,0 +1,11 @@
+{
+  "httpServer": {
+    "addr": "localhost:8080",
+    "allowedOrigins": ["*"],
+    "corsMaxAgeSec": 86400
+  },
+  "logger": {
+    "level": "debug",
+    "pretty": true
+  }
+}

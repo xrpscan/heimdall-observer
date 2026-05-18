@@ -1,0 +1,61 @@
+name: CD
+on:
+  # Runs on all push events on main.
+  push:
+    branches: [main]
+
+permissions:
+  # Can only read the source code.
+  contents: read
+
+jobs:
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: 1.26
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --fix=false --timeout 5m
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build
+        run: go build cmd/observer/main.go
+
+  semver:
+    name: Semver
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/semver
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+#  deploy:
+#    name: Deploy
+#    needs: semver
+#    runs-on: ubuntu-latest
+#    steps:
+#     - uses: actions/checkout@v4
+#     - uses: ./.github/actions/deploy
+#       with:
+#        server_ip: ${{ fromJSON(secrets.SSH_DETAILS).server_ip }}
+#        ssh_private_key: ${{ fromJSON(secrets.SSH_DETAILS).ssh_private_key }}
+#        ssh_username: ${{ fromJSON(secrets.SSH_DETAILS).ssh_username }}
+#        service_name: observer
+#        network_name: my-network
+#        config_json: ${{ secrets.CONFIG_JSON }}

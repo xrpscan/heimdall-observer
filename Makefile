@@ -1,0 +1,49 @@
+SHELL=/usr/bin/env bash
+
+application_name        = observer
+application_binary_name = observer
+
+# Support both podman and docker.
+DOCKER=$(shell which podman || which docker || echo 'docker')
+
+# Builds the project.
+build:
+	@echo "+$@"
+	@go build -o bin/$(application_binary_name) cmd/$(application_name)/main.go
+
+# Runs the project after linting and building it anew.
+run: tidy build
+	@echo "+$@"
+	@echo "########### Running the application binary ############"
+	@bin/$(application_binary_name)
+
+# Tests the whole project.
+test:
+	@echo "+$@"
+	@go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+# Runs the "go mod tidy" command.
+tidy:
+	@echo "+$@"
+	@go mod tidy
+
+# Runs golang-ci-lint over the project.
+lint:
+	@echo "+$@"
+	@golangci-lint run ./...
+
+# Builds the docker image for the project.
+image:
+	@echo "+$@"
+	@$(DOCKER) build --file Containerfile --tag $(application_name):latest .
+
+# Runs the project container assuming the image is already built.
+container:
+	@echo "+$@"
+	@echo "############### Removing old container ################"
+	@$(DOCKER) rm -f $(application_name)
+
+	@echo "################ Running new container ################"
+	@$(DOCKER) run --name $(application_name) --detach --publish 8080:8080 \
+        --volume $(PWD)/config/config.json:/service/config/config.json \
+        $(application_name):latest
