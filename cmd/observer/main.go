@@ -72,14 +72,19 @@ func main() {
 // makeHttpServer makes the http server and returns it without calling any Listen methods.
 func makeHttpServer(ctx context.Context, addr string, handler http.Handler) *http.Server {
 	return &http.Server{
-		BaseContext:       func(_ net.Listener) context.Context { return ctx },
-		Addr:              addr,
-		ReadHeaderTimeout: time.Second * 5,
-		ReadTimeout:       0, // Not set to avoid problems with websocket connections.
-		WriteTimeout:      0, // Not set to avoid problems with websocket connections.
-		IdleTimeout:       time.Second * 60,
-		MaxHeaderBytes:    64 * 1024, // 64 KB
-		Handler:           handler,
+		BaseContext: func(_ net.Listener) context.Context { return ctx },
+		Addr:        addr,
+		Handler:     handler,
+		// Max time to read request headers. Defends against slowloris attacks.
+		ReadHeaderTimeout: 5 * time.Second,
+		// Max time from connection accept to full request body read.
+		ReadTimeout: 5 * time.Second,
+		// Max time from request header read to response write completion.
+		WriteTimeout: 10 * time.Second,
+		// Max time a keep-alive connection can sit idle between requests.
+		IdleTimeout: 60 * time.Second,
+		// Max size of request headers.
+		MaxHeaderBytes: 8 * 1024, // 8 KB
 	}
 }
 
