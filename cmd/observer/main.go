@@ -43,17 +43,12 @@ func main() {
 	wd, _ := os.Getwd()
 	slog.InfoContext(ctx, "config file path", "path", *configPath, "wd", wd)
 
-	// Set up the API handlers.
-	handler := rest.NewHandler(conf)
-
 	// The REST API server of the app.
-	httpServer := makeHttpServer(ctx, conf.HttpServer.Addr, handler)
+	httpServer := makeHttpServer(ctx, conf.HttpServer.Addr, rest.NewHandler(conf))
 
 	go func() {
 		// Signal the app to exit if the http server stops.
-		// This is fine even if the server is stopped by the cleanup function.
 		defer cancel()
-
 		slog.InfoContext(ctx, "starting the http server", "addr", conf.HttpServer.Addr)
 
 		// Start listening.
@@ -63,10 +58,12 @@ func main() {
 		}
 	}()
 
+	// TODO: Initialize rippled here with graceful shutdown.
+
 	// The app exits only once the root context is canceled.
 	<-ctx.Done()
 	// Gracefully shutdown services before exiting.
-	cleanup(httpServer, handler)
+	cleanup(httpServer)
 }
 
 // makeHttpServer makes the http server and returns it without calling any Listen methods.
@@ -90,7 +87,7 @@ func makeHttpServer(ctx context.Context, addr string, handler http.Handler) *htt
 
 // cleanup closes all the passed dependencies gracefully.
 // It is supposed to be called before the app exits.
-func cleanup(httpServer *http.Server, handler *rest.Handler) {
+func cleanup(httpServer *http.Server) {
 	// To allow dependencies some time for graceful shutdown.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -100,14 +97,6 @@ func cleanup(httpServer *http.Server, handler *rest.Handler) {
 			slog.ErrorContext(ctx, "failed to shutdown http server", "error", err)
 		} else {
 			slog.InfoContext(ctx, "http server shutdown successful")
-		}
-	}
-
-	if handler != nil {
-		if err := handler.Close(ctx); err != nil {
-			slog.ErrorContext(ctx, "failed to close rest handler", "error", err)
-		} else {
-			slog.InfoContext(ctx, "rest handler shutdown successful")
 		}
 	}
 }

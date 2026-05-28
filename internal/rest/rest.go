@@ -1,7 +1,6 @@
 package rest
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/shivanshkc/observer/internal/config"
@@ -31,11 +30,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.underlying.ServeHTTP(w, r)
 }
 
-// Close the handler's operations gracefully.
-func (h *Handler) Close(ctx context.Context) error {
-	return nil
-}
-
 // addRoutes instantiates the underlying handler and attaches all REST routes to it.
 func (h *Handler) addRoutes() {
 	// A ServeMux will act as the underlying http.Handler.
@@ -43,7 +37,7 @@ func (h *Handler) addRoutes() {
 	h.underlying = mux
 
 	// Status check API.
-	mux.HandleFunc("GET /api", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		httputils.WriteJson(w, http.StatusOK, nil, map[string]any{"code": "OK"})
 	})
 }
