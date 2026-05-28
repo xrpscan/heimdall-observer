@@ -16,6 +16,10 @@ func getRippleMessageType(message []byte) (string, error) {
 		return "", fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
+	if typeDecoder.Type == "" {
+		return "", fmt.Errorf("type field is empty or absent")
+	}
+
 	return typeDecoder.Type, nil
 }
 

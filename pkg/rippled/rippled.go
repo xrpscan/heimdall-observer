@@ -213,6 +213,10 @@ func (c *Client) readLoop(ctx context.Context) {
 			}
 
 			sendContext(ctx, c.validationChan, validationMessage)
+
+		default:
+			err := fmt.Errorf("message of unknown type received: %s", rippleMessageType)
+			sendContext(ctx, c.errorChan, err)
 		}
 	}
 }
