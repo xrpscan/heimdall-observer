@@ -12,7 +12,7 @@ const (
 )
 
 var (
-	ErrStreamAlreadySubscribed = errors.New("stream is already subscribed")
+	ErrStreamAlreadyOrBeingSubscribed = errors.New("stream is already subscribed or being subscribed")
 
 	// ErrFatal means that the Client is no longer usable.
 	ErrFatal = errors.New("fatal error")
@@ -21,12 +21,14 @@ var (
 // MessageValidationReceived is the schema of a message received through the "validation" stream.
 type MessageValidationReceived struct{}
 
+// subscriptionRequest is the schema of a subcription request for rippled.
 type subscriptionRequest struct {
 	ID      any      `json:"id"`
 	Command string   `json:"command"`
 	Stream  []string `json:"stream"`
 }
 
+// subscriptionResponse is the schema of the response that rippled gives for a subscription request.
 type subscriptionResponse struct {
 	ID     any    `json:"id"`
 	Status string `json:"status"`

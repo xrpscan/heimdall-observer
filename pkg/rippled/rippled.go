@@ -21,8 +21,12 @@ type Client struct {
 	// All requests that have not been responded yet live here.
 	pendingRequests SyncMap[string, chan<- subscriptionResponse]
 
-	// Active subscriptions.
-	subscriptions  SyncMap[string, struct{}]
+	// Active or pending subscriptions.
+	// Here:
+	// 1. A key being absent means the subscription does not exist.
+	// 2. A key's value being false means that the subscription is pending (request is processing)
+	// 3. A key's value being true means that the subscription is active.
+	subscriptions  SyncMap[string, bool]
 	validationChan chan MessageValidationReceived
 
 	// All errors that need to be transmitted to the Client-owner are sent to this channel.
@@ -50,7 +54,7 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 		rootCancel:      rootCancel,
 		connection:      conn,
 		pendingRequests: SyncMap[string, chan<- subscriptionResponse]{},
-		subscriptions:   SyncMap[string, struct{}]{},
+		subscriptions:   SyncMap[string, bool]{},
 		// This channel will receive validationReceived events.
 		validationChan: make(chan MessageValidationReceived, 10),
 		// This channel will receive all errors.
@@ -92,10 +96,16 @@ func (c *Client) Errors() <-chan error {
 
 // SubscribeValidationStream subscribes to the "validations" stream.
 func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageValidationReceived, error) {
-	// Disallow multiple subscriptions.
-	if _, exists := c.subscriptions.Load(messageTypeValidationReceived); exists {
-		return nil, ErrStreamAlreadySubscribed
+	// Mark the subscription in progress if there's no entry for it yet.
+	if !c.subscriptions.StoreIfAbsent(messageTypeValidationReceived, false /* false means subscription is in progress */) {
+		return nil, ErrStreamAlreadyOrBeingSubscribed
 	}
+
+	// If the subscription is still set to pending by the time the function is returning,
+	// it means that subscription failed. So, it should be cleaned up.
+	defer c.subscriptions.DeleteIf(messageTypeValidationReceived, func(v bool, exists bool) bool {
+		return exists && v == false
+	})
 
 	// ID to correlate request and response.
 	id := uuid.NewString()
@@ -135,7 +145,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 		return nil, fmt.Errorf("root context canceled before receiving response: %w", c.rootContext.Err())
 	}
 
-	c.subscriptions.Store(messageTypeValidationReceived, struct{}{})
+	c.subscriptions.Store(messageTypeValidationReceived, true /* true means that the subscription is active. */)
 	return c.validationChan, nil
 }
 
