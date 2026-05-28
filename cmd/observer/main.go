@@ -15,6 +15,7 @@ import (
 	"github.com/shivanshkc/observer/internal/config"
 	"github.com/shivanshkc/observer/internal/logger"
 	"github.com/shivanshkc/observer/internal/rest"
+	"github.com/shivanshkc/observer/pkg/rippled"
 )
 
 func main() {
@@ -58,12 +59,44 @@ func main() {
 		}
 	}()
 
-	// TODO: Initialize rippled here with graceful shutdown.
+	// Initiate rippled connection.
+	ripplec, err := rippled.NewClient(ctx, conf.Ripple.Addr)
+	if err != nil {
+		cleanup(httpServer, nil)
+		slog.ErrorContext(ctx, "error in rippled.NewClient call", "error", err)
+		return
+	}
+
+	// Goroutine to monitor rippled websocket errors.
+	go func() {
+		// Signal the app to exit if this goroutine returns.
+		defer cancel()
+
+		// Listen to rippled errors and trigger shutdown if fatal.
+		for err := range ripplec.Errors() {
+			// If error is fatal, return from the goroutine, triggering shutdown.
+			if errors.Is(err, rippled.ErrFatal) {
+				slog.ErrorContext(ctx, "fatal error occurred inside rippled client", "error", err)
+				return
+			}
+			slog.ErrorContext(ctx, "non-fatal error occurred inside rippled client", "error", err)
+		}
+	}()
+
+	// Subscribe to rippled validation stream.
+	validationStreamChan, err := ripplec.SubscribeValidationStream(ctx)
+	if err != nil {
+		cleanup(httpServer, ripplec)
+		panic("failed to subscribe to rippled validation stream: " + err.Error())
+	}
+
+	// TODO: Use validation stream.
+	_ = validationStreamChan
 
 	// The app exits only once the root context is canceled.
 	<-ctx.Done()
 	// Gracefully shutdown services before exiting.
-	cleanup(httpServer)
+	cleanup(httpServer, ripplec)
 }
 
 // makeHttpServer makes the http server and returns it without calling any Listen methods.
@@ -87,7 +120,7 @@ func makeHttpServer(ctx context.Context, addr string, handler http.Handler) *htt
 
 // cleanup closes all the passed dependencies gracefully.
 // It is supposed to be called before the app exits.
-func cleanup(httpServer *http.Server) {
+func cleanup(httpServer *http.Server, ripplec *rippled.Client) {
 	// To allow dependencies some time for graceful shutdown.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -97,6 +130,14 @@ func cleanup(httpServer *http.Server) {
 			slog.ErrorContext(ctx, "failed to shutdown http server", "error", err)
 		} else {
 			slog.InfoContext(ctx, "http server shutdown successful")
+		}
+	}
+
+	if ripplec != nil {
+		if err := ripplec.Close("application shutdown"); err != nil {
+			slog.ErrorContext(ctx, "failed to shutdown rippled client", "error", err)
+		} else {
+			slog.InfoContext(ctx, "rippled client shutdown successful")
 		}
 	}
 }
