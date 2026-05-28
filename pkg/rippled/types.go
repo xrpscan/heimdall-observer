@@ -21,11 +21,11 @@ var (
 // MessageValidationReceived is the schema of a message received through the "validation" stream.
 type MessageValidationReceived struct{}
 
-// subscriptionRequest is the schema of a subcription request for rippled.
+// subscriptionRequest is the schema of a subscription request for rippled.
 type subscriptionRequest struct {
 	ID      any      `json:"id"`
 	Command string   `json:"command"`
-	Stream  []string `json:"stream"`
+	Streams []string `json:"streams"`
 }
 
 // subscriptionResponse is the schema of the response that rippled gives for a subscription request.

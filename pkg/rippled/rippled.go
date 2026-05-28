@@ -88,7 +88,7 @@ func (c *Client) Close(reason string) error {
 	return nil
 }
 
-// Errors returns a read-only channel to which all interal errors of the Client are sent.
+// Errors returns a read-only channel to which all internal errors of the Client are sent.
 // The caller should consider the Client useless once an error is received.
 func (c *Client) Errors() <-chan error {
 	return c.errorChan
@@ -111,7 +111,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	id := uuid.NewString()
 
 	// Form the request message.
-	message, err := json.Marshal(subscriptionRequest{ID: id, Command: "subscribe", Stream: []string{"validations"}})
+	message, err := json.Marshal(subscriptionRequest{ID: id, Command: "subscribe", Streams: []string{"validations"}})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal subscription request: %w", err)
 	}
@@ -132,7 +132,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	case response := <-waitChan:
 		// Mostly a redundant check because read-loop matches IDs too, but doesn't hurt.
 		if response.ID != id {
-			return nil, fmt.Errorf("id mismatch, response id: %s, request id: %s", response.ID, id)
+			return nil, fmt.Errorf("id mismatch, response id: %v, request id: %s", response.ID, id)
 		}
 
 		// Handle error response.
@@ -199,7 +199,7 @@ func (c *Client) readLoop(ctx context.Context) {
 			// Find the corresponding request.
 			channel, exists := c.pendingRequests.Load(id)
 			if !exists {
-				err := fmt.Errorf("no request found for response, id: %s", response.ID)
+				err := fmt.Errorf("no request found for response, id: %v", response.ID)
 				sendContext(ctx, c.errorChan, err)
 				continue
 			}
@@ -210,8 +210,9 @@ func (c *Client) readLoop(ctx context.Context) {
 			c.pendingRequests.Delete(id)
 
 		case messageTypeValidationReceived:
-			if _, subscribed := c.subscriptions.Load(messageTypeValidationReceived); !subscribed {
-				// Not subscribed, nothing to do.
+			// Explicit "status != true" check makes it clear that true represents an active subscription.
+			if status, _ := c.subscriptions.Load(messageTypeValidationReceived); status != true {
+				// Subscription is absent or pending, nothing to do.
 				continue
 			}
 
