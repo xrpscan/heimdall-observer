@@ -47,7 +47,11 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 		rootCancel()
 		return nil, fmt.Errorf("error in websocket.Dial call: %w", err)
 	}
-	defer func() { _ = response.Body.Close() }()
+
+	// Response body is not required, so close it right away.
+	if response != nil && response.Body != nil {
+		_ = response.Body.Close()
+	}
 
 	client := &Client{
 		rootContext:     rootContext,

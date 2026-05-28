@@ -19,7 +19,7 @@ var (
 )
 
 // MessageValidationReceived is the schema of a message received through the "validation" stream.
-type MessageValidationReceived struct{}
+type MessageValidationReceived map[string]any // TODO: Move to struct.
 
 // subscriptionRequest is the schema of a subscription request for rippled.
 type subscriptionRequest struct {
