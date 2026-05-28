@@ -7,5 +7,8 @@
   "logger": {
     "level": "debug",
     "pretty": true
+  },
+  "ripple": {
+    "addr": "wss://xrplcluster.com"
   }
 }

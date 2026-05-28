@@ -19,6 +19,10 @@ type Config struct {
 		Level  string `json:"level"`
 		Pretty bool   `json:"pretty"`
 	} `json:"logger"`
+
+	Ripple struct {
+		Addr string `json:"addr"`
+	} `json:"ripple"`
 }
 
 // Load config from the given JSON file.
@@ -43,17 +47,21 @@ func Load(jsonPath string) (Config, error) {
 // validate the loaded config.
 func validate(conf Config) error {
 	if conf.HttpServer.Addr == "" {
-		return fmt.Errorf("http server address is required")
+		return fmt.Errorf("httpServer.addr is required")
 	}
 	if len(conf.HttpServer.AllowedOrigins) == 0 {
-		return fmt.Errorf("http server allowed origins are required")
+		return fmt.Errorf("httpServer.allowedOrigins are required")
 	}
 	if conf.HttpServer.CorsMaxAgeSec == 0 {
-		return fmt.Errorf("http server cors max age is required")
+		return fmt.Errorf("httpServer.corsMaxAgeSec is required")
 	}
 
 	if conf.Logger.Level == "" {
-		return fmt.Errorf("logger level is required")
+		return fmt.Errorf("logger.level is required")
+	}
+
+	if conf.Ripple.Addr == "" {
+		return fmt.Errorf("ripple.addr is required")
 	}
 
 	return nil
