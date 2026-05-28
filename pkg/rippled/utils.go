@@ -1,6 +1,7 @@
 package rippled
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 )
@@ -16,4 +17,12 @@ func getRippleMessageType(message []byte) (string, error) {
 	}
 
 	return typeDecoder.Type, nil
+}
+
+// Sends the given item to the given channel with context-awareness.
+func sendContext[T any](ctx context.Context, c chan<- T, item T) {
+	select {
+	case <-ctx.Done():
+	case c <- item:
+	}
 }

@@ -12,6 +12,10 @@ import (
 
 // Client represents a rippled server client.
 type Client struct {
+	rootContext context.Context
+	rootCancel  context.CancelFunc
+
+	// The underlying websocket connection object.
 	connection *websocket.Conn
 
 	// All requests that have not been responded yet live here.
@@ -23,33 +27,39 @@ type Client struct {
 
 	// All errors that need to be transmitted to the Client-owner are sent to this channel.
 	errorChan chan error
+
+	// readLoopStopped receives an item only once readLoop returns.
+	readLoopStopped chan struct{}
 }
 
 // NewClient returns a new Client instance.
 // The addr is assumed to start with "wss://" or "ws://", no sanity checks are performed.
 func NewClient(ctx context.Context, addr string) (*Client, error) {
+	rootContext, rootCancel := context.WithCancel(ctx)
+
 	// Establish websocket connection with the rippled server.
-	conn, response, err := websocket.Dial(ctx, addr, nil)
+	conn, response, err := websocket.Dial(rootContext, addr, nil)
 	if err != nil {
+		rootCancel()
 		return nil, fmt.Errorf("error in websocket.Dial call: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	// This channel will receive all errors.
-	errorChan := make(chan error, 10)
-	// This channel will receive validationReceived events.
-	validationChan := make(chan MessageValidationReceived, 10)
-
 	client := &Client{
+		rootContext:     rootContext,
+		rootCancel:      rootCancel,
 		connection:      conn,
 		pendingRequests: SyncMap[string, chan<- subscriptionResponse]{},
 		subscriptions:   SyncMap[string, struct{}]{},
-		validationChan:  validationChan,
-		errorChan:       errorChan,
+		// This channel will receive validationReceived events.
+		validationChan: make(chan MessageValidationReceived, 10),
+		// This channel will receive all errors.
+		errorChan:       make(chan error, 10),
+		readLoopStopped: make(chan struct{}),
 	}
 
 	// Start reading messages.
-	go client.readLoop(ctx)
+	go client.readLoop(rootContext)
 
 	return client, nil
 }
@@ -57,15 +67,20 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 // Close the client. If an error received from the Errors() method wraps ErrFatal, Close should be
 // called by the owner manually.
 func (c *Client) Close(reason string) error {
+	// Canceling the root context will free the various operations that may otherwise block.
+	c.rootCancel()
+
 	if err := c.connection.Close(websocket.StatusNormalClosure, reason); err != nil {
 		return fmt.Errorf("error in connection.Close call: %w", err)
 	}
 
-	close(c.errorChan)
-	close(c.validationChan)
+	// Channels like errorChan and validationChan are not closed here because the readLoop owns
+	// them. Only the writer should close the channels.
+	<-c.readLoopStopped
 
 	c.pendingRequests.Clear()
 	c.subscriptions.Clear()
+
 	return nil
 }
 
@@ -94,6 +109,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	waitChan := make(chan subscriptionResponse)
 	// Read loop will read this map and send the response to waitChan.
 	c.pendingRequests.Store(id, waitChan)
+	// Even though read loop owns this cleanup, doing it here again is harmless.
 	defer c.pendingRequests.Delete(id)
 
 	// Send the request message.
@@ -114,7 +130,9 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 			return nil, fmt.Errorf("response status is not success: response: %+v", response)
 		}
 	case <-ctx.Done():
-		return nil, fmt.Errorf("context canceled before receving response: %w", ctx.Err())
+		return nil, fmt.Errorf("context canceled before receiving response: %w", ctx.Err())
+	case <-c.rootContext.Done():
+		return nil, fmt.Errorf("root context canceled before receiving response: %w", c.rootContext.Err())
 	}
 
 	c.subscriptions.Store(messageTypeValidationReceived, struct{}{})
@@ -122,11 +140,19 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 }
 
 func (c *Client) readLoop(ctx context.Context) {
+	// Read loop is the only write to these channels so it is responsible for closing them.
+	defer func() {
+		close(c.validationChan)
+		close(c.errorChan)
+		close(c.readLoopStopped)
+	}()
+
 	for {
 		// Read message. Error means that the connect is bad.
 		messageType, message, err := c.connection.Read(ctx)
 		if err != nil {
-			c.errorChan <- errors.Join(fmt.Errorf("error while reading message: %w", err), ErrFatal)
+			err := errors.Join(fmt.Errorf("error while reading message: %w", err), ErrFatal)
+			sendContext(ctx, c.errorChan, err)
 			return
 		}
 
@@ -138,7 +164,8 @@ func (c *Client) readLoop(ctx context.Context) {
 		// Get Ripple's message type ("response", "validationReceived" etc)
 		rippleMessageType, err := getRippleMessageType(message)
 		if err != nil {
-			c.errorChan <- fmt.Errorf("failed to get ripple message type: %w", err)
+			err := fmt.Errorf("failed to get ripple message type: %w", err)
+			sendContext(ctx, c.errorChan, err)
 			continue
 		}
 
@@ -146,26 +173,29 @@ func (c *Client) readLoop(ctx context.Context) {
 		case messageTypeResponse:
 			var response subscriptionResponse
 			if err := json.Unmarshal(message, &response); err != nil {
-				c.errorChan <- fmt.Errorf("failed to unmarshal response message: %w", err)
+				err := fmt.Errorf("failed to unmarshal response message: %w", err)
+				sendContext(ctx, c.errorChan, err)
 				continue
 			}
 
 			// ID should be string for map lookup operation.
 			id, ok := response.ID.(string)
 			if !ok {
-				c.errorChan <- fmt.Errorf("response id is not string: value: %v", response.ID)
+				err := fmt.Errorf("response id is not string: value: %v", response.ID)
+				sendContext(ctx, c.errorChan, err)
 				continue
 			}
 
 			// Find the corresponding request.
 			channel, exists := c.pendingRequests.Load(id)
 			if !exists {
-				c.errorChan <- fmt.Errorf("no request found for response, id: %s", response.ID)
+				err := fmt.Errorf("no request found for response, id: %s", response.ID)
+				sendContext(ctx, c.errorChan, err)
 				continue
 			}
 
 			// Unblock request and cleanup.
-			channel <- response
+			sendContext(ctx, channel, response)
 			close(channel)
 			c.pendingRequests.Delete(id)
 
@@ -177,11 +207,12 @@ func (c *Client) readLoop(ctx context.Context) {
 
 			var validationMessage MessageValidationReceived
 			if err := json.Unmarshal(message, &validationMessage); err != nil {
-				c.errorChan <- fmt.Errorf("failed to unmarshal %s message: %w", rippleMessageType, err)
+				err := fmt.Errorf("failed to unmarshal %s message: %w", rippleMessageType, err)
+				sendContext(ctx, c.errorChan, err)
 				continue
 			}
 
-			c.validationChan <- validationMessage
+			sendContext(ctx, c.validationChan, validationMessage)
 		}
 	}
 }
