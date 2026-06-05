@@ -3,7 +3,6 @@ package rippled
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/coder/websocket"
@@ -74,18 +73,24 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 
 // Close the client. If an error received from the Errors() method wraps ErrFatal, Close should be
 // called by the owner manually.
-func (c *Client) Close(reason string) error {
+func (c *Client) Close(ctx context.Context) error {
 	// Canceling the root context will free the various operations that may otherwise block.
 	c.rootCancel()
 
-	if err := c.connection.Close(websocket.StatusNormalClosure, reason); err != nil {
+	if err := c.connection.Close(websocket.StatusNormalClosure, "internal reason"); err != nil {
 		return fmt.Errorf("error in connection.Close call: %w", err)
 	}
 
 	// Channels like errorChan and validationChan are not closed here because the readLoop owns
 	// them. Only the writer should close the channels.
-	<-c.readLoopStopped
+	select {
+	case <-c.readLoopStopped:
+	// Respect the caller's context. Note that the maps won't be cleared in this case.
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
+	// Read loop has stopped. The final step is to clear the maps.
 	c.pendingRequests.Clear()
 	c.subscriptions.Clear()
 
@@ -165,7 +170,7 @@ func (c *Client) readLoop(ctx context.Context) {
 		// Read message. Error means that the connect is bad.
 		messageType, message, err := c.connection.Read(ctx)
 		if err != nil {
-			err := errors.Join(fmt.Errorf("error while reading message: %w", err), ErrFatal)
+			err := fmt.Errorf("error while reading message: %w: %w", ErrFatal, err)
 			sendContext(ctx, c.errorChan, err)
 			return
 		}
