@@ -67,6 +67,8 @@ func main() {
 		return
 	}
 
+	slog.InfoContext(ctx, "successfully connected to rippled", "addr", conf.Ripple.Addr)
+
 	// Goroutine to monitor rippled websocket errors.
 	go func() {
 		// Signal the app to exit if this goroutine returns.
@@ -90,7 +92,9 @@ func main() {
 		panic("failed to subscribe to rippled validation stream: " + err.Error())
 	}
 
-	// TODO: Use validation stream.
+	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
+
+	// TODO: Use the stream.
 	_ = validationStreamChan
 
 	// The app exits only once the root context is canceled.
