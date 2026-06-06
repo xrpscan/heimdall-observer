@@ -116,7 +116,14 @@ func main() {
 	}
 
 	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
-	go proc.ConsumeValidationStream(ctx, validationStreamChan, embedded)
+
+	// Instantiate the validation stream consumer.
+	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded)
+	// Since it is being registered after the embedded database initialization, it will be closed
+	// before it. Making sure the remaining events are flushed correctly.
+	reg.Register("validation-stream-consumer", vsc)
+	// Start consuming the stream.
+	go vsc.Start(ctx)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
