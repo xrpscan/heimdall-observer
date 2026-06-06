@@ -34,26 +34,24 @@ func NewValidationStreamConsumer(
 // Start consuming from the stream. This is a blocking call.
 //
 // It reads messages coming through the provided stream and inserts them into the provided database.
-func (v ValidationStreamConsumer) Start(ctx context.Context) {
+func (v *ValidationStreamConsumer) Start(ctx context.Context) {
 	for {
-		// If context has expired, break the infinite loop.
 		select {
+		// If context has expired, break the infinite loop.
 		case <-ctx.Done():
 			slog.InfoContext(ctx, "successfully stopped validation stream consumption")
 			return
-		default:
-		}
+		case item, open := <-v.stream:
+			if !open {
+				slog.WarnContext(ctx, "validation stream is closed, "+
+					"context should be found expired in the next iteration")
+				continue
+			}
 
-		item, open := <-v.stream
-		if !open {
-			slog.WarnContext(ctx, "validation stream is closed, "+
-				"context should be found expired in the next iteration")
-			continue
-		}
-
-		// Submit the item for processing. It will process only if the batch size has met.
-		if err := v.batchProc.addItem(ctx, item); err != nil {
-			slog.ErrorContext(ctx, "failed to process a batch, MESSAGES WILL BE LOST", "error", err)
+			// Submit the item for processing. It will process only if the batch size has met.
+			if err := v.batchProc.addItem(ctx, item); err != nil {
+				slog.ErrorContext(ctx, "failed to process a batch, MESSAGES WILL BE LOST", "error", err)
+			}
 		}
 	}
 }
@@ -62,7 +60,7 @@ func (v ValidationStreamConsumer) Start(ctx context.Context) {
 //
 // Note that it does not unblock the Start call. The Start call is unblocked only when context
 // passed to it expires.
-func (v ValidationStreamConsumer) Close(ctx context.Context) error {
+func (v *ValidationStreamConsumer) Close(ctx context.Context) error {
 	if err := v.batchProc.flush(ctx); err != nil {
 		return fmt.Errorf("failed to flush remaining messages: %w", err)
 	}

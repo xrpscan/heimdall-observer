@@ -15,8 +15,7 @@ import (
 // Note that Registry's zero-value does not work as intended.
 // New must be called to create a usable Registry.
 type Registry struct {
-	rootCtx context.Context
-	logger  Logger
+	logger Logger
 
 	mutex    sync.RWMutex
 	services map[string]Closer
@@ -25,7 +24,9 @@ type Registry struct {
 
 // New returns a new Registry instance. Note that Registry's zero-value does not work as intended.
 // New must be called to create a usable Registry.
-func New(ctx context.Context, logger Logger) *Registry {
+//
+// If logging is not required, nil can be passed for the logger.
+func New(logger Logger) *Registry {
 	// Default to no-op logger.
 	if logger == nil {
 		logger = noopLogger{}
@@ -33,7 +34,6 @@ func New(ctx context.Context, logger Logger) *Registry {
 
 	// Instantiate registry.
 	registry := &Registry{
-		rootCtx:  ctx,
 		logger:   logger,
 		mutex:    sync.RWMutex{},
 		services: map[string]Closer{},

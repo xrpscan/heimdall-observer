@@ -57,7 +57,7 @@ func (e *Embedded) BulkInsertValidationMessages(ctx context.Context, messages []
 		return fmt.Errorf("unexpected number of rows were inserted: %d, expected: %d", count, len(messages))
 	}
 
-	slog.InfoContext(ctx, "successfully inserted messages", "count", count)
+	slog.DebugContext(ctx, "successfully inserted messages", "count", count)
 	return nil
 }
 

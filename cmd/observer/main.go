@@ -44,7 +44,7 @@ func main() {
 	logger.Init(os.Stdout, conf.Logger.Level, conf.Logger.Pretty)
 
 	// Registry to ensure graceful shutdown.
-	reg := registry.New(ctx, slog.Default())
+	reg := registry.New(slog.Default())
 	// Close all registered services before application exit.
 	defer reg.MustCloseAll()
 
