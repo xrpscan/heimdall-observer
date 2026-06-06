@@ -59,9 +59,11 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 		pendingRequests: SyncMap[string, chan<- subscriptionResponse]{},
 		subscriptions:   SyncMap[string, bool]{},
 		// This channel will receive validationReceived events.
-		validationChan: make(chan MessageValidationReceived, 10),
+		// The buffer should be large enough to accommodate a slow consumer.
+		validationChan: make(chan MessageValidationReceived, 1000),
 		// This channel will receive all errors.
-		errorChan:       make(chan error, 10),
+		// The buffer should be large enough to accommodate a slow consumer.
+		errorChan:       make(chan error, 1000),
 		readLoopStopped: make(chan struct{}),
 	}
 
@@ -113,7 +115,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	// If the subscription is still set to pending by the time the function is returning,
 	// it means that subscription failed. So, it should be cleaned up.
 	defer c.subscriptions.DeleteIf(messageTypeValidationReceived, func(v bool, exists bool) bool {
-		return exists && v == false
+		return exists && v == false //nolint:staticcheck // v == false is more readable to me.
 	})
 
 	// ID to correlate request and response.
@@ -219,6 +221,7 @@ func (c *Client) readLoop(ctx context.Context) {
 			c.pendingRequests.Delete(id)
 
 		case messageTypeValidationReceived:
+			//nolint:staticcheck
 			// Explicit "status != true" check makes it clear that true represents an active subscription.
 			if status, _ := c.subscriptions.Load(messageTypeValidationReceived); status != true {
 				// Subscription is absent or pending, nothing to do.

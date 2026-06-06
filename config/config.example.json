@@ -1,4 +1,7 @@
 {
+  "database": {
+    "filePath": "./observer.db"
+  },
   "httpServer": {
     "addr": "localhost:8080",
     "allowedOrigins": ["*"],

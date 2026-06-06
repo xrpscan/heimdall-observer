@@ -8,6 +8,10 @@ import (
 
 // Config encapsulates all config required by the application.
 type Config struct {
+	Database struct {
+		FilePath string `json:"filePath"`
+	} `json:"database"`
+
 	HttpServer struct {
 		Addr           string   `json:"addr"`
 		AllowedOrigins []string `json:"allowedOrigins"`
@@ -46,6 +50,10 @@ func Load(jsonPath string) (Config, error) {
 
 // validate the loaded config.
 func validate(conf Config) error {
+	if conf.Database.FilePath == "" {
+		return fmt.Errorf("database.filePath is required")
+	}
+
 	if conf.HttpServer.Addr == "" {
 		return fmt.Errorf("httpServer.addr is required")
 	}

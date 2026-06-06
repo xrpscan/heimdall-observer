@@ -14,7 +14,9 @@ import (
 
 	"github.com/shivanshkc/observer/internal/config"
 	"github.com/shivanshkc/observer/internal/logger"
+	"github.com/shivanshkc/observer/internal/proc"
 	"github.com/shivanshkc/observer/internal/rest"
+	"github.com/shivanshkc/observer/internal/store"
 	"github.com/shivanshkc/observer/pkg/registry"
 	"github.com/shivanshkc/observer/pkg/rippled"
 )
@@ -49,6 +51,17 @@ func main() {
 	// Log config file path along with the working directory to avoid confusions.
 	wd, _ := os.Getwd()
 	slog.InfoContext(ctx, "config file path", "path", *configPath, "wd", wd)
+
+	// Connect to the embedded database.
+	embedded, err := store.NewEmbedded(ctx, conf.Database.FilePath)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to connect to embedded database", "error", err)
+		return
+	}
+
+	reg.Register("embedded-db", embedded)
+	slog.InfoContext(ctx, "successfully connected to the embedded database",
+		"path", conf.Database.FilePath)
 
 	// Create and register the REST API server of the app.
 	httpServer := makeHttpServer(ctx, conf.HttpServer.Addr, rest.NewHandler(conf))
@@ -103,9 +116,7 @@ func main() {
 	}
 
 	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
-
-	// TODO: Use the stream.
-	_ = validationStreamChan
+	go proc.ConsumeValidationStream(ctx, validationStreamChan, embedded)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()

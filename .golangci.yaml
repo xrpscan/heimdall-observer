@@ -1,7 +1,7 @@
 version: "2"
 
 issues:
-  fix: true
+  fix: false
 formatters:
   enable:
     - gci

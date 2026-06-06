@@ -1,3 +1,6 @@
+# Embedded database
+*.db
+
 # Compiled output
 bin
 
