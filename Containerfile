@@ -26,6 +26,7 @@ WORKDIR /service
 
 # Copy the files to the production image from the builder stage.
 COPY --from=builder /service/bin /service/
+COPY --from=builder /service/db /service/db/
 
 # Run the web service on container startup.
 CMD ["/service/observer"]

@@ -1,6 +1,6 @@
 {
   "database": {
-    "filePath": "./observer.db"
+    "filePath": "./data/observer.db"
   },
   "httpServer": {
     "addr": "localhost:8080",

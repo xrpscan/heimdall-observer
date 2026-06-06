@@ -1,4 +1,5 @@
 # Embedded database
+data
 *.db
 
 # Compiled output
@@ -13,7 +14,8 @@ tmp-*
 temp-*
 
 # Config
-config/config.json
+config/*
+!config/config.example.json
 
 # Profiling data
 pprof

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/shivanshkc/observer/pkg/rippled"
@@ -20,6 +22,10 @@ type Embedded struct {
 
 // NewEmbedded returns a new Embedded instance.
 func NewEmbedded(ctx context.Context, filePath string) (*Embedded, error) {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0700); err != nil {
+		return nil, fmt.Errorf("failed to create parent directory for the database file: %w", err)
+	}
+
 	db, err := sql.Open("sqlite", filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error in sql.Open call: %w", err)

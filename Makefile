@@ -48,6 +48,7 @@ container:
 	@echo "################ Running new container ################"
 	@$(DOCKER) run --name $(application_name) --detach --publish 8080:8080 \
         --volume $(PWD)/config/config.json:/service/config/config.json \
+        --volume $(PWD)/data:/service/data:z \
         $(application_name):latest
 
 migrate-up:
