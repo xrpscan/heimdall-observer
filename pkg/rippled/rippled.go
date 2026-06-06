@@ -79,8 +79,12 @@ func (c *Client) Close(ctx context.Context) error {
 	// Canceling the root context will free the various operations that may otherwise block.
 	c.rootCancel()
 
-	if err := c.connection.Close(websocket.StatusNormalClosure, "internal reason"); err != nil {
-		return fmt.Errorf("error in connection.Close call: %w", err)
+	// Using CloseNow because we cannot manage a graceful closure here.
+	// The reason is that the root context has already been canceled, which closes the websocket
+	// connection (because rootContext is passed to the Dial call). So, since the connection is
+	// already closed, a graceful closure attempt is futile.
+	if err := c.connection.CloseNow(); err != nil {
+		return fmt.Errorf("error in connection.CloseNow call: %w", err)
 	}
 
 	// Channels like errorChan and validationChan are not closed here because the readLoop owns
