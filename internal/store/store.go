@@ -16,7 +16,7 @@ type Client interface {
 
 	// ListValidationMessages returns validation messages, oldest first. The limit parameter
 	// controls the max number of messages that can be returned.
-	ListValidationMessages(ctx context.Context, limit int) ([]ValidationReceivedMessageRow, error)
+	ListValidationMessages(ctx context.Context, limit int) ([]ValidationMessageRow, error)
 
 	// DeleteValidationMessages deletes the validation messages whose Id match one of the given ids.
 	DeleteValidationMessages(ctx context.Context, ids []int) error

@@ -3,6 +3,8 @@ SHELL=/usr/bin/env bash
 application_name        = observer
 application_binary_name = observer
 
+database_dsn = 'sqlite3://./observer.db'
+
 # Support both podman and docker.
 DOCKER=$(shell which podman || which docker || echo 'docker')
 
@@ -47,3 +49,11 @@ container:
 	@$(DOCKER) run --name $(application_name) --detach --publish 8080:8080 \
         --volume $(PWD)/config/config.json:/service/config/config.json \
         $(application_name):latest
+
+migrate-up:
+	@echo "+$@"
+	@migrate -verbose -path db/migrations -database $(database_dsn) up
+
+migrate-down:
+	@echo "+$@"
+	@migrate -verbose -path db/migrations -database $(database_dsn) down
