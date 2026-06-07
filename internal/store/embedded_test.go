@@ -11,6 +11,7 @@ import (
 	"github.com/shivanshkc/observer/pkg/rippled"
 
 	"github.com/stretchr/testify/require"
+
 	_ "modernc.org/sqlite"
 )
 
@@ -32,7 +33,7 @@ func newTestEmbedded(t *testing.T) *Embedded {
 	_, err = db.Exec(migrationUp)
 	require.NoError(t, err)
 
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { _ = db.Close() })
 	return &Embedded{db: db}
 }
 
@@ -110,7 +111,7 @@ func TestBulkInsert_AutoIncrementIDs(t *testing.T) {
 
 	rows, err := e.db.QueryContext(ctx, "SELECT id FROM validations ORDER BY id")
 	require.NoError(t, err)
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var ids []int
 	for rows.Next() {
@@ -145,7 +146,7 @@ func TestNewEmbedded_CreatesParentDir(t *testing.T) {
 
 	e, err := NewEmbedded(context.Background(), dbPath)
 	require.NoError(t, err)
-	defer e.Close(context.Background())
+	defer func() { _ = e.Close(context.Background()) }()
 
 	info, err := os.Stat(dir)
 	require.NoError(t, err)

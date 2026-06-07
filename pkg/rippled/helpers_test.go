@@ -22,7 +22,7 @@ func startMockServer(t *testing.T, handler func(ctx context.Context, conn *webso
 		if err != nil {
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 
 		handler(r.Context(), conn)
 	}))

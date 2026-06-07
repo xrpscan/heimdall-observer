@@ -20,7 +20,6 @@ import (
 
 // TODO: Add periodic flush to VSC.
 // TODO: Make VSC batch size and flush period configurable.
-// TODO: Test for the case when batch size increases beyond max due flush call failure.
 
 func main() {
 	// This is the root context of the app.

@@ -86,7 +86,7 @@ func TestClient_SubscribeValidationStream_Success(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	ch, err := client.SubscribeValidationStream(context.Background())
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestClient_SubscribeValidationStream_ErrorResponse(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	ch, err := client.SubscribeValidationStream(context.Background())
 	require.Error(t, err)
@@ -136,7 +136,7 @@ func TestClient_SubscribeValidationStream_ContextCanceled(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -156,7 +156,7 @@ func TestClient_SubscribeValidationStream_DuplicateSubscription(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	_, err = client.SubscribeValidationStream(context.Background())
 	require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	ch, err := client.SubscribeValidationStream(context.Background())
 	require.NoError(t, err)
@@ -218,7 +218,7 @@ func TestClient_ReadLoop_UnknownMessageType(t *testing.T) {
 
 	client, err := NewClient(context.Background(), url)
 	require.NoError(t, err)
-	defer client.Close(context.Background())
+	defer func() { _ = client.Close(context.Background()) }()
 
 	select {
 	case err := <-client.Errors():
@@ -232,7 +232,7 @@ func TestClient_ReadLoop_ServerDisconnect(t *testing.T) {
 	t.Parallel()
 
 	url := startMockServer(t, func(ctx context.Context, conn *websocket.Conn) {
-		conn.Close(websocket.StatusNormalClosure, "bye")
+		_ = conn.Close(websocket.StatusNormalClosure, "bye")
 	})
 
 	client, err := NewClient(context.Background(), url)
