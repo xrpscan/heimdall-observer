@@ -20,8 +20,10 @@ type Config struct {
 	} `json:"httpServer"`
 
 	Logger struct {
-		Level  string `json:"level"`
-		Pretty bool   `json:"pretty"`
+		// Leave empty for stdout logging.
+		FilePath string `json:"filePath"`
+		Level    string `json:"level"`
+		Pretty   bool   `json:"pretty"`
 	} `json:"logger"`
 
 	Ripple struct {

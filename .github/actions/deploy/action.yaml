@@ -85,6 +85,8 @@ runs:
         mkdir -p ~/services/${{ inputs.service_name }}/config
         # Create database directory
         mkdir -p ~/services/${{ inputs.service_name }}/data
+        # Create logs directory
+        mkdir -p ~/services/${{ inputs.service_name }}/logs
 
         # Move config file to config directory
         mv /tmp/config.json ~/services/${{ inputs.service_name }}/config/
@@ -98,6 +100,7 @@ runs:
           --network ${{ inputs.network_name }} \
           --volume ~/services/${{ inputs.service_name }}/config/config.json:/service/config/config.json:ro \
           --volume ~/services/${{ inputs.service_name }}/data:/service/data \
+          --volume ~/services/${{ inputs.service_name }}/logs:/service/logs \
           ${{ inputs.service_name }}:latest
 
         # Clean up temporary files

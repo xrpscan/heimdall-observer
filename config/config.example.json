@@ -8,6 +8,7 @@
     "corsMaxAgeSec": 86400
   },
   "logger": {
+    "filePath": "./logs/observer.log",
     "level": "debug",
     "pretty": true
   },

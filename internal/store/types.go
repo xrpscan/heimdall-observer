@@ -6,7 +6,7 @@ import (
 
 // ValidationMessageRow is the schema of a single row in the "validations" table.
 type ValidationMessageRow struct {
-	Id        int
+	ID        int
 	Message   rippled.MessageValidationReceived
 	CreatedAt int64
 }

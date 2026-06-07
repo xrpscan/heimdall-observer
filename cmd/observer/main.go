@@ -21,7 +21,6 @@ import (
 // TODO: Add periodic flush to VSC.
 // TODO: Make VSC batch size and flush period configurable.
 // TODO: Test for the case when batch size increases beyond max due flush call failure.
-// TODO: Add log rotation using files.
 
 func main() {
 	// This is the root context of the app.
@@ -43,12 +42,15 @@ func main() {
 	}
 
 	// Setup logger.
-	logger.Init(os.Stdout, conf.Logger.Level, conf.Logger.Pretty)
+	closer := logger.Init(conf.Logger.FilePath, conf.Logger.Level, conf.Logger.Pretty)
 
 	// Registry to ensure graceful shutdown.
 	reg := registry.New(slog.Default())
 	// Close all registered services before application exit.
 	defer reg.MustCloseAll()
+
+	// Register the log file for closing.
+	reg.RegisterWithFunc("log-file", func(context.Context) error { return closer() })
 
 	// Log config file path along with the working directory to avoid confusions.
 	wd, _ := os.Getwd()

@@ -49,6 +49,7 @@ container:
 	@$(DOCKER) run --name $(application_name) --detach --publish 8080:8080 \
         --volume $(PWD)/config/config.json:/service/config/config.json \
         --volume $(PWD)/data:/service/data:z \
+        --volume $(PWD)/logs:/service/logs:z \
         $(application_name):latest
 
 migrate-up:
