@@ -173,10 +173,11 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 			return
 		}
 
-		for i := range 3 {
+		hashes := []string{"AAA", "BBB", "CCC"}
+		for _, h := range hashes {
 			msg, _ := json.Marshal(map[string]any{
-				"type":  messageTypeValidationReceived,
-				"index": i,
+				"type":        messageTypeValidationReceived,
+				"ledger_hash": h,
 			})
 			if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
 				return
@@ -193,10 +194,11 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 	ch, err := client.SubscribeValidationStream(context.Background())
 	require.NoError(t, err)
 
-	for i := range 3 {
+	expected := []string{"AAA", "BBB", "CCC"}
+	for i, want := range expected {
 		select {
 		case msg := <-ch:
-			require.Equal(t, float64(i), msg["index"])
+			require.Equal(t, want, msg.LedgerHash)
 		case <-time.After(2 * time.Second):
 			t.Fatalf("timed out waiting for message %d", i)
 		}
