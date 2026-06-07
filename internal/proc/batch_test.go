@@ -18,7 +18,9 @@ func TestBatchProcessor_BelowThreshold(t *testing.T) {
 	})
 
 	for i := range 4 {
-		require.NoError(t, bp.addItem(context.Background(), i))
+		count, err := bp.addItem(context.Background(), i)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
 	}
 
 	require.False(t, called)
@@ -33,9 +35,16 @@ func TestBatchProcessor_AtThreshold(t *testing.T) {
 		return nil
 	})
 
-	for i := range 3 {
-		require.NoError(t, bp.addItem(context.Background(), i))
+	for i := range 2 {
+		count, err := bp.addItem(context.Background(), i)
+		require.NoError(t, err)
+		require.Equal(t, 0, count)
 	}
+
+	// Third item triggers flush.
+	count, err := bp.addItem(context.Background(), 2)
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
 
 	require.Equal(t, []int{0, 1, 2}, received)
 }
@@ -50,10 +59,13 @@ func TestBatchProcessor_ManualFlush(t *testing.T) {
 	})
 
 	for i := range 3 {
-		require.NoError(t, bp.addItem(context.Background(), i))
+		_, err := bp.addItem(context.Background(), i)
+		require.NoError(t, err)
 	}
 
-	require.NoError(t, bp.flush(context.Background()))
+	count, err := bp.flush(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 3, count)
 	require.Equal(t, []int{0, 1, 2}, received)
 }
 
@@ -66,7 +78,9 @@ func TestBatchProcessor_FlushEmpty(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, bp.flush(context.Background()))
+	count, err := bp.flush(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
 	require.False(t, called)
 }
 
@@ -78,10 +92,12 @@ func TestBatchProcessor_OperationError(t *testing.T) {
 		return opErr
 	})
 
-	require.NoError(t, bp.addItem(context.Background(), 1))
+	_, err := bp.addItem(context.Background(), 1)
+	require.NoError(t, err)
 
-	err := bp.addItem(context.Background(), 2)
+	count, err := bp.addItem(context.Background(), 2)
 	require.ErrorIs(t, err, opErr)
+	require.Equal(t, 0, count)
 }
 
 func TestBatchProcessor_OperationErrorOnFlush(t *testing.T) {
@@ -92,10 +108,12 @@ func TestBatchProcessor_OperationErrorOnFlush(t *testing.T) {
 		return opErr
 	})
 
-	require.NoError(t, bp.addItem(context.Background(), 1))
+	_, err := bp.addItem(context.Background(), 1)
+	require.NoError(t, err)
 
-	err := bp.flush(context.Background())
+	count, err := bp.flush(context.Background())
 	require.ErrorIs(t, err, opErr)
+	require.Equal(t, 0, count)
 }
 
 func TestBatchProcessor_MultipleBatches(t *testing.T) {
@@ -108,14 +126,17 @@ func TestBatchProcessor_MultipleBatches(t *testing.T) {
 	})
 
 	for i := range 7 {
-		require.NoError(t, bp.addItem(context.Background(), i))
+		_, err := bp.addItem(context.Background(), i)
+		require.NoError(t, err)
 	}
 
 	require.Len(t, calls, 2)
 	require.Equal(t, []int{0, 1, 2}, calls[0])
 	require.Equal(t, []int{3, 4, 5}, calls[1])
 
-	require.NoError(t, bp.flush(context.Background()))
+	count, err := bp.flush(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
 	require.Len(t, calls, 3)
 	require.Equal(t, []int{6}, calls[2])
 }
@@ -133,17 +154,17 @@ func TestBatchProcessor_FlushFailureRetries(t *testing.T) {
 
 	// Fill to threshold — flush is attempted and fails.
 	for i := range 3 {
-		_ = bp.addItem(context.Background(), i)
+		_, _ = bp.addItem(context.Background(), i)
 	}
 	require.Equal(t, 1, callCount)
 	require.Equal(t, 3, lastBatchSize)
 
 	// Each subsequent addItem should retry flush with a growing batch.
-	_ = bp.addItem(context.Background(), 10)
+	_, _ = bp.addItem(context.Background(), 10)
 	require.Equal(t, 2, callCount)
 	require.Equal(t, 4, lastBatchSize)
 
-	_ = bp.addItem(context.Background(), 11)
+	_, _ = bp.addItem(context.Background(), 11)
 	require.Equal(t, 3, callCount)
 	require.Equal(t, 5, lastBatchSize)
 }
@@ -157,9 +178,16 @@ func TestBatchProcessor_FlushClearsItems(t *testing.T) {
 		return nil
 	})
 
-	require.NoError(t, bp.addItem(context.Background(), 1))
-	require.NoError(t, bp.flush(context.Background()))
-	require.NoError(t, bp.flush(context.Background()))
+	_, err := bp.addItem(context.Background(), 1)
+	require.NoError(t, err)
+
+	count, err := bp.flush(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+
+	count, err = bp.flush(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, count)
 
 	require.Equal(t, 1, callCount)
 }

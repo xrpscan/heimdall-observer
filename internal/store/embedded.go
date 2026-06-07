@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -63,7 +62,6 @@ func (e *Embedded) BulkInsertValidationMessages(ctx context.Context, messages []
 		return fmt.Errorf("unexpected number of rows were inserted: %d, expected: %d", count, len(messages))
 	}
 
-	slog.DebugContext(ctx, "successfully inserted messages", "count", count)
 	return nil
 }
 

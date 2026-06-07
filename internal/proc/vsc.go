@@ -55,8 +55,10 @@ func (v *ValidationStreamConsumer) Start(ctx context.Context) {
 			return
 		// Flush the batch periodically.
 		case <-ticker.C:
-			if err := v.batchProc.flush(ctx); err != nil {
+			if count, err := v.batchProc.flush(ctx); err != nil {
 				slog.ErrorContext(ctx, "failed to auto-flush batch", "error", err)
+			} else {
+				slog.InfoContext(ctx, "successfully auto-flushed messages", "count", count)
 			}
 		case item, open := <-v.stream:
 			if !open {
@@ -70,8 +72,10 @@ func (v *ValidationStreamConsumer) Start(ctx context.Context) {
 			ticker.Reset(v.autoFlushDelay)
 
 			// Submit the item for processing. It will process only if the batch size has met.
-			if err := v.batchProc.addItem(ctx, item); err != nil {
-				slog.ErrorContext(ctx, "failed to process a batch", "error", err)
+			if count, err := v.batchProc.addItem(ctx, item); err != nil {
+				slog.ErrorContext(ctx, "failed to process message batch", "error", err)
+			} else if count > 0 {
+				slog.DebugContext(ctx, "successfully processed message batch", "count", count)
 			}
 		}
 	}
@@ -82,10 +86,11 @@ func (v *ValidationStreamConsumer) Start(ctx context.Context) {
 // Note that it does not unblock the Start call. The Start call is unblocked only when context
 // passed to it expires.
 func (v *ValidationStreamConsumer) Close(ctx context.Context) error {
-	if err := v.batchProc.flush(ctx); err != nil {
+	count, err := v.batchProc.flush(ctx)
+	if err != nil {
 		return fmt.Errorf("failed to flush remaining messages: %w", err)
 	}
 
-	slog.InfoContext(ctx, "successfully flushed remaining messages to db")
+	slog.InfoContext(ctx, "successfully flushed remaining messages", "count", count)
 	return nil
 }

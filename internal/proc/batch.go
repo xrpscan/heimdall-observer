@@ -38,7 +38,10 @@ func newBatchProcessor[T any](maxBatchSize int, operation bulkOperation[T]) *bat
 
 // addItem adds a new item to the batch.
 // This may lead to a flush call if the batch size has crossed the thershold, otherwise not.
-func (b *batchProcessor[T]) addItem(ctx context.Context, item T) error {
+//
+// If a flush call is triggered, the exact number of items flushed are returned. Otherwise, zero
+// is returned.
+func (b *batchProcessor[T]) addItem(ctx context.Context, item T) (int, error) {
 	b.itemsMutex.Lock()
 	b.items = append(b.items, item)
 	clone := slices.Clone(b.items)
@@ -46,26 +49,27 @@ func (b *batchProcessor[T]) addItem(ctx context.Context, item T) error {
 
 	// Check if threshold is reached.
 	if len(clone) < b.maxBatchSize {
-		return nil
+		return 0, nil
 	}
 
 	// Threshold has reached. Flush items.
 	return b.flush(ctx)
 }
 
-// flush items by calling the bulkOperation.
-func (b *batchProcessor[T]) flush(ctx context.Context) error {
+// flush items by calling the bulkOperation. It returns the exact number of items flushed.
+func (b *batchProcessor[T]) flush(ctx context.Context) (int, error) {
 	b.itemsMutex.Lock()
 	defer b.itemsMutex.Unlock()
 
-	if len(b.items) == 0 {
-		return nil
+	count := len(b.items)
+	if count == 0 {
+		return 0, nil
 	}
 
 	if err := b.operation(ctx, b.items); err != nil {
-		return fmt.Errorf("error in bulk operation: %w", err)
+		return 0, fmt.Errorf("error in bulk operation: %w", err)
 	}
 
 	b.items = nil
-	return nil
+	return count, nil
 }
