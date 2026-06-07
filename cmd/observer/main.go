@@ -5,12 +5,9 @@ import (
 	"errors"
 	"flag"
 	"log/slog"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/shivanshkc/observer/internal/config"
 	"github.com/shivanshkc/observer/internal/logger"
@@ -64,15 +61,13 @@ func main() {
 		return
 	}
 
-	reg.Register("embedded-db", embedded)
+	reg.Register("embedded-database", embedded)
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
 	// Create and register the REST API server of the app.
-	httpServer := makeHttpServer(ctx, conf.HttpServer.Addr, rest.NewHandler(conf))
-	reg.RegisterWithFunc("http-server", func(ctx context.Context) error {
-		return httpServer.Shutdown(ctx)
-	})
+	server := rest.NewServer(ctx, conf.HttpServer.Addr, rest.NewHandler(conf))
+	reg.Register("http-server", server)
 
 	go func() {
 		// Signal the registry for closure.
@@ -80,8 +75,7 @@ func main() {
 		slog.InfoContext(ctx, "starting the http-server", "addr", conf.HttpServer.Addr)
 
 		// Start listening.
-		err := httpServer.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := server.ListenAndServe(); err != nil {
 			slog.ErrorContext(ctx, "error in ListenAndServe call", "error", err)
 		}
 	}()
@@ -140,23 +134,4 @@ func main() {
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
-}
-
-// makeHttpServer makes the http server and returns it without calling any Listen methods.
-func makeHttpServer(ctx context.Context, addr string, handler http.Handler) *http.Server {
-	return &http.Server{
-		BaseContext: func(_ net.Listener) context.Context { return ctx },
-		Addr:        addr,
-		Handler:     handler,
-		// Max time to read request headers. Defends against slowloris attacks.
-		ReadHeaderTimeout: 5 * time.Second,
-		// Max time from connection accept to full request body read.
-		ReadTimeout: 5 * time.Second,
-		// Max time from request header read to response write completion.
-		WriteTimeout: 10 * time.Second,
-		// Max time a keep-alive connection can sit idle between requests.
-		IdleTimeout: 60 * time.Second,
-		// Max size of request headers.
-		MaxHeaderBytes: 8 * 1024, // 8 KB
-	}
 }
