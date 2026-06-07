@@ -29,6 +29,11 @@ type Config struct {
 	Ripple struct {
 		Addr string `json:"addr"`
 	} `json:"ripple"`
+
+	ValidationStream struct {
+		MaxBatchSize      int `json:"maxBatchSize"`
+		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
+	} `json:"validationStream"`
 }
 
 // Load config from the given JSON file.
@@ -62,7 +67,7 @@ func validate(conf Config) error {
 	if len(conf.HttpServer.AllowedOrigins) == 0 {
 		return fmt.Errorf("httpServer.allowedOrigins are required")
 	}
-	if conf.HttpServer.CorsMaxAgeSec == 0 {
+	if conf.HttpServer.CorsMaxAgeSec < 1 {
 		return fmt.Errorf("httpServer.corsMaxAgeSec is required")
 	}
 
@@ -72,6 +77,13 @@ func validate(conf Config) error {
 
 	if conf.Ripple.Addr == "" {
 		return fmt.Errorf("ripple.addr is required")
+	}
+
+	if conf.ValidationStream.MaxBatchSize < 1 {
+		return fmt.Errorf("validationStream.maxBatchSize is required")
+	}
+	if conf.ValidationStream.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("validationStream.autoFlushDelaySec is required")
 	}
 
 	return nil

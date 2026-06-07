@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/shivanshkc/observer/internal/config"
 	"github.com/shivanshkc/observer/internal/logger"
@@ -17,9 +18,6 @@ import (
 	"github.com/shivanshkc/observer/pkg/registry"
 	"github.com/shivanshkc/observer/pkg/rippled"
 )
-
-// TODO: Add periodic flush to VSC.
-// TODO: Make VSC batch size and flush period configurable.
 
 func main() {
 	// This is the root context of the app.
@@ -117,22 +115,49 @@ func main() {
 
 	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
 
-	// Instantiate the validation stream consumer.
-	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded)
-	// VSC is registered after the embedded database so it closes before the database.
-	// This is done to make sure that database is running while VSC runs its flush operations.
-	reg.Register("validation-stream-consumer", vsc)
-	// Start consuming the stream.
-	go vsc.Start(ctx)
-
-	// Instantiate the database -> kafka synchronizer.
-	dks := proc.NewDatabaseKafkaSynchronizer(embedded, nil /* kafkaProducer */)
-	// DKS is intentionally registered after the embedded database and the Kafka producer, since
-	// they should close after DKS.
-	reg.Register("database-kafka-synchronizer", dks)
-	// Start synchronizing.
-	go dks.Start(ctx)
+	// The two main long-running processes of the application.
+	startVSC(ctx, conf, reg, validationStreamChan, embedded)
+	startDKS(ctx, reg, embedded, nil)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
+}
+
+// startVSC starts and registers the Validation Stream Consumer.
+func startVSC(
+	ctx context.Context, conf config.Config, reg *registry.Registry,
+	validationStreamChan <-chan rippled.MessageValidationReceived, embedded store.Client,
+) {
+	// Parse relevant config.
+	mbs := conf.ValidationStream.MaxBatchSize
+	afd := time.Duration(conf.ValidationStream.AutoFlushDelaySec) * time.Second
+
+	// Instantiate the validation stream consumer.
+	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded, mbs, afd)
+
+	// VSC is registered after the embedded database so it closes before the database.
+	// This is done to make sure that database is running while VSC runs its flush operations.
+	reg.Register("validation-stream-consumer", vsc)
+
+	// Start consuming the stream.
+	go vsc.Start(ctx)
+
+	slog.InfoContext(ctx, "starting validation stream consumption",
+		"maxBatchSize", mbs, "autoFlushDelay", afd)
+}
+
+// startDKS starts and registers the Database-Kafka Synchronizer.
+func startDKS(
+	ctx context.Context, reg *registry.Registry, embedded store.Client, kafkaProducer any,
+) {
+	// Instantiate the database -> kafka synchronizer.
+	dks := proc.NewDatabaseKafkaSynchronizer(embedded, kafkaProducer)
+
+	// DKS is intentionally registered after the embedded database and the Kafka producer, since
+	// they should close after DKS.
+	reg.Register("database-kafka-synchronizer", dks)
+
+	// Start synchronizing.
+	go dks.Start(ctx)
+	slog.InfoContext(ctx, "starting database-kafka synchronization")
 }

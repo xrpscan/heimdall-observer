@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	testBatchSize      = 5
+	testAutoFlushDelay = time.Minute
+)
+
 func TestVSC_ConsumesMessages(t *testing.T) {
 	t.Parallel()
 
@@ -23,16 +28,15 @@ func TestVSC_ConsumesMessages(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock)
+	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Send enough messages to trigger a batch flush.
-	for i := range validationStreamBatchSize {
-		stream <- rippled.MessageValidationReceived{LedgerHash: string(rune('A' + i%26))}
+	for range testBatchSize {
+		stream <- rippled.MessageValidationReceived{LedgerHash: "A"}
 	}
 
-	// Invoke Start without blocking. The channel can be used to track its closure.
 	done := make(chan struct{})
 	go func() {
 		vsc.Start(ctx)
@@ -42,12 +46,10 @@ func TestVSC_ConsumesMessages(t *testing.T) {
 	// Wait for the stream to be consumed before canceling the context.
 	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
 
-	// Cancel the context and wait for Start to return.
 	cancel()
 	<-done
 
-	// All messages must be processed by the time Start returns.
-	require.Len(t, received, validationStreamBatchSize)
+	require.Len(t, received, testBatchSize)
 }
 
 func TestVSC_StartExitsOnContextCancel(t *testing.T) {
@@ -60,7 +62,7 @@ func TestVSC_StartExitsOnContextCancel(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived)
-	vsc := NewValidationStreamConsumer(stream, mock)
+	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -91,12 +93,12 @@ func TestVSC_CloseFlushesRemaining(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock)
+	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Send fewer than threshold so no auto-flush happens.
-	for range validationStreamBatchSize - 1 {
+	for range testBatchSize - 1 {
 		stream <- rippled.MessageValidationReceived{LedgerHash: "X"}
 	}
 
@@ -117,7 +119,7 @@ func TestVSC_CloseFlushesRemaining(t *testing.T) {
 
 	// Close flushes the remaining items.
 	require.NoError(t, vsc.Close(context.Background()))
-	require.Len(t, received, validationStreamBatchSize-1)
+	require.Len(t, received, testBatchSize-1)
 }
 
 func TestVSC_CloseReturnsError(t *testing.T) {
@@ -130,7 +132,7 @@ func TestVSC_CloseReturnsError(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock)
+	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -150,4 +152,44 @@ func TestVSC_CloseReturnsError(t *testing.T) {
 	err := vsc.Close(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "db down")
+}
+
+func TestVSC_AutoFlush(t *testing.T) {
+	t.Parallel()
+
+	var received []rippled.MessageValidationReceived
+	mock := &mockStoreClient{
+		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+			received = append(received, msgs...)
+			return nil
+		},
+	}
+
+	stream := make(chan rippled.MessageValidationReceived, 100)
+	// High batch size so threshold is never hit; short auto-flush delay.
+	vsc := NewValidationStreamConsumer(stream, mock, 1000, 100*time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	for range 3 {
+		stream <- rippled.MessageValidationReceived{LedgerHash: "Z"}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		vsc.Start(ctx)
+		close(done)
+	}()
+
+	// Wait for stream to drain.
+	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
+	// Wait for auto-flush to happen.
+	time.Sleep(2 * vsc.autoFlushDelay)
+
+	// Signal Start to return and wait for it.
+	cancel()
+	<-done
+
+	// After Start returns, received is safe to read.
+	require.Len(t, received, 3)
 }
