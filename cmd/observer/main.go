@@ -21,6 +21,11 @@ import (
 	"github.com/shivanshkc/observer/pkg/rippled"
 )
 
+// TODO: Add periodic flush to VSC.
+// TODO: Make VSC batch size and flush period configurable.
+// TODO: Test for the case when batch size increases beyond max due flush call failure.
+// TODO: Add log rotation using files.
+
 func main() {
 	// This is the root context of the app.
 	// It should be passed to all services of the app (example: http server, database client).
@@ -119,11 +124,19 @@ func main() {
 
 	// Instantiate the validation stream consumer.
 	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded)
-	// Since it is being registered after the embedded database initialization, it will be closed
-	// before it. Making sure the remaining events are flushed correctly.
+	// VSC is registered after the embedded database so it closes before the database.
+	// This is done to make sure that database is running while VSC runs its flush operations.
 	reg.Register("validation-stream-consumer", vsc)
 	// Start consuming the stream.
 	go vsc.Start(ctx)
+
+	// Instantiate the database -> kafka synchronizer.
+	dks := proc.NewDatabaseKafkaSynchronizer(embedded, nil /* kafkaProducer */)
+	// DKS is intentionally registered after the embedded database and the Kafka producer, since
+	// they should close after DKS.
+	reg.Register("database-kafka-synchronizer", dks)
+	// Start synchronizing.
+	go dks.Start(ctx)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
