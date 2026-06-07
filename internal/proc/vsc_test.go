@@ -1,0 +1,153 @@
+package proc
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/shivanshkc/observer/pkg/rippled"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestVSC_ConsumesMessages(t *testing.T) {
+	t.Parallel()
+
+	var received []rippled.MessageValidationReceived
+	mock := &mockStoreClient{
+		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+			received = append(received, msgs...)
+			return nil
+		},
+	}
+
+	stream := make(chan rippled.MessageValidationReceived, 100)
+	vsc := NewValidationStreamConsumer(stream, mock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Send enough messages to trigger a batch flush.
+	for i := range validationStreamBatchSize {
+		stream <- rippled.MessageValidationReceived{LedgerHash: string(rune('A' + i%26))}
+	}
+
+	// Invoke Start without blocking. The channel can be used to track its closure.
+	done := make(chan struct{})
+	go func() {
+		vsc.Start(ctx)
+		close(done)
+	}()
+
+	// Wait for the stream to be consumed before canceling the context.
+	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
+
+	// Cancel the context and wait for Start to return.
+	cancel()
+	<-done
+
+	// All messages must be processed by the time Start returns.
+	require.Len(t, received, validationStreamBatchSize)
+}
+
+func TestVSC_StartExitsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockStoreClient{
+		bulkInsertFn: func(_ context.Context, _ []rippled.MessageValidationReceived) error {
+			return nil
+		},
+	}
+
+	stream := make(chan rippled.MessageValidationReceived)
+	vsc := NewValidationStreamConsumer(stream, mock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		vsc.Start(ctx)
+		close(done)
+	}()
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start did not exit after context cancellation")
+	}
+}
+
+func TestVSC_CloseFlushesRemaining(t *testing.T) {
+	t.Parallel()
+
+	var received []rippled.MessageValidationReceived
+	mock := &mockStoreClient{
+		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+			received = append(received, msgs...)
+			return nil
+		},
+	}
+
+	stream := make(chan rippled.MessageValidationReceived, 100)
+	vsc := NewValidationStreamConsumer(stream, mock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Send fewer than threshold so no auto-flush happens.
+	for range validationStreamBatchSize - 1 {
+		stream <- rippled.MessageValidationReceived{LedgerHash: "X"}
+	}
+
+	done := make(chan struct{})
+	go func() {
+		vsc.Start(ctx)
+		close(done)
+	}()
+
+	// Wait for messages to be consumed from the channel.
+	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
+
+	// No flush yet — below threshold.
+	require.Empty(t, received)
+
+	cancel()
+	<-done
+
+	// Close flushes the remaining items.
+	require.NoError(t, vsc.Close(context.Background()))
+	require.Len(t, received, validationStreamBatchSize-1)
+}
+
+func TestVSC_CloseReturnsError(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockStoreClient{
+		bulkInsertFn: func(_ context.Context, _ []rippled.MessageValidationReceived) error {
+			return errors.New("db down")
+		},
+	}
+
+	stream := make(chan rippled.MessageValidationReceived, 100)
+	vsc := NewValidationStreamConsumer(stream, mock)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	stream <- rippled.MessageValidationReceived{LedgerHash: "Y"}
+
+	done := make(chan struct{})
+	go func() {
+		vsc.Start(ctx)
+		close(done)
+	}()
+
+	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
+
+	cancel()
+	<-done
+
+	err := vsc.Close(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "db down")
+}

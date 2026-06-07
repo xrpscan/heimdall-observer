@@ -9,6 +9,10 @@ import (
 	"github.com/shivanshkc/observer/pkg/rippled"
 )
 
+// validationStreamBatchSize is the maxBatchSize value used to process messages from the
+// validation stream.
+const validationStreamBatchSize = 50
+
 // ValidationStreamConsumer is an abstraction to consume a stream of validatioReceived messages
 // from rippled and push them to an embedded database.
 type ValidationStreamConsumer struct {
@@ -27,7 +31,7 @@ func NewValidationStreamConsumer(
 	// Instead, we'll do inserts in batches of size 50, which leads to 2-3 database calls per burst.
 	//
 	// TODO: Wrap the BulkInsertValidationMessages call into a retryable logic?
-	batchProc := newBatchProcessor(50, embedded.BulkInsertValidationMessages)
+	batchProc := newBatchProcessor(validationStreamBatchSize, embedded.BulkInsertValidationMessages)
 	return &ValidationStreamConsumer{embedded: embedded, stream: stream, batchProc: batchProc}
 }
 
