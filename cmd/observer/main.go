@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -60,10 +61,35 @@ func main() {
 		return
 	}
 
+	// Register embedded database for cleanup.
 	reg.Register("embedded-database", embedded)
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
+	// Create http server and start listening.
+	setupHttpServer(ctx, cancel, conf, reg)
+
+	// Connect with rippled and subscribe to the validations stream.
+	validationStreamChan, err := setupRipple(ctx, cancel, conf, reg)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to setup ripple", "error", err)
+		return
+	}
+
+	// The two main long-running processes of the application.
+	startVSC(ctx, conf, reg, validationStreamChan, embedded)
+	startDKS(ctx, reg, embedded, nil)
+
+	// Block until the app is interrupted or a process calls the CancelFunc.
+	<-ctx.Done()
+}
+
+// setupHttpServer creates a new http server and asynchronously starts listening.
+//
+// It registers the http server with the registry and also calls cancel if the server errors.
+func setupHttpServer(
+	ctx context.Context, cancel context.CancelFunc, conf config.Config, reg *registry.Registry,
+) {
 	// Create and register the REST API server of the app.
 	server := rest.NewServer(ctx, conf.HttpServer.Addr, rest.NewHandler(conf))
 	reg.Register("http-server", server)
@@ -78,12 +104,20 @@ func main() {
 			slog.ErrorContext(ctx, "error in ListenAndServe call", "error", err)
 		}
 	}()
+}
 
+// setupRipple establishes connection with rippled, registers it with the registry for cleanup.
+// It listens to rippled websocket errors asynchronously, and calls cancel if a fatal error occurs.
+//
+// It also subscribes to the validation messages stream and returns a read only channel for the
+// caller to access it.
+func setupRipple(
+	ctx context.Context, cancel context.CancelFunc, conf config.Config, reg *registry.Registry,
+) (<-chan rippled.MessageValidationReceived, error) {
 	// Initiate rippled connection.
 	ripplec, err := rippled.NewClient(ctx, conf.Ripple.Addr)
 	if err != nil {
-		slog.ErrorContext(ctx, "error in rippled.NewClient call", "error", err)
-		return
+		return nil, fmt.Errorf("error in rippled.NewClient call: %w", err)
 	}
 
 	// Register the ripple client for graceful closure.
@@ -109,18 +143,11 @@ func main() {
 	// Subscribe to rippled validation stream.
 	validationStreamChan, err := ripplec.SubscribeValidationStream(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to subscribe to rippled validation stream", "error", err)
-		return
+		return nil, fmt.Errorf("failed to subscribe to rippled validation stream: %w", err)
 	}
 
 	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
-
-	// The two main long-running processes of the application.
-	startVSC(ctx, conf, reg, validationStreamChan, embedded)
-	startDKS(ctx, reg, embedded, nil)
-
-	// Block until the app is interrupted or a process calls the CancelFunc.
-	<-ctx.Done()
+	return validationStreamChan, nil
 }
 
 // startVSC starts and registers the Validation Stream Consumer.
