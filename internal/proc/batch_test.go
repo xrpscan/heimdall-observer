@@ -120,6 +120,34 @@ func TestBatchProcessor_MultipleBatches(t *testing.T) {
 	require.Equal(t, []int{6}, calls[2])
 }
 
+func TestBatchProcessor_FlushFailureRetries(t *testing.T) {
+	t.Parallel()
+
+	callCount := 0
+	var lastBatchSize int
+	bp := newBatchProcessor(3, func(_ context.Context, items []int) error {
+		callCount++
+		lastBatchSize = len(items)
+		return errors.New("db down")
+	})
+
+	// Fill to threshold — flush is attempted and fails.
+	for i := range 3 {
+		_ = bp.addItem(context.Background(), i)
+	}
+	require.Equal(t, 1, callCount)
+	require.Equal(t, 3, lastBatchSize)
+
+	// Each subsequent addItem should retry flush with a growing batch.
+	_ = bp.addItem(context.Background(), 10)
+	require.Equal(t, 2, callCount)
+	require.Equal(t, 4, lastBatchSize)
+
+	_ = bp.addItem(context.Background(), 11)
+	require.Equal(t, 3, callCount)
+	require.Equal(t, 5, lastBatchSize)
+}
+
 func TestBatchProcessor_FlushClearsItems(t *testing.T) {
 	t.Parallel()
 
