@@ -93,11 +93,14 @@ func main() {
 		return
 	}
 
+	// Function to produce Kafka messages to a fixed topic.
+	kProducerFunc := func(ctx context.Context, payload []byte, headers map[string]string) error {
+		return kafkaClient.Produce(ctx, conf.Kafka.ValidationsTopic, payload, headers)
+	}
+
 	// The two main long-running processes of the application.
 	startVSC(ctx, conf, reg, validationStreamChan, embedded)
-	startDKS(ctx, reg, embedded, func(ctx context.Context, message any) error {
-		return kafkaClient.Produce(ctx /* TODO */)
-	})
+	startDKS(ctx, reg, embedded, kProducerFunc)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()

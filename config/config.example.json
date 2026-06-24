@@ -11,7 +11,8 @@
     "brokers": ["localhost:19092", "localhost:29092", "localhost:39092"],
     "username": "something",
     "password": "secret",
-    "caCertPath": "/path/to/ca/cert"
+    "caCertPath": "/path/to/ca/cert",
+    "validationsTopic": "your-validations-topic"
   },
   "logger": {
     "filePath": "./logs/observer.log",

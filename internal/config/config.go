@@ -20,10 +20,11 @@ type Config struct {
 	} `json:"httpServer"`
 
 	Kafka struct {
-		Brokers    []string `json:"brokers"`
-		Username   string   `json:"username"`
-		Password   string   `json:"password"`
-		CACertPath string   `json:"caCertPath"`
+		Brokers          []string `json:"brokers"`
+		Username         string   `json:"username"`
+		Password         string   `json:"password"`
+		CACertPath       string   `json:"caCertPath"`
+		ValidationsTopic string   `json:"validationsTopic"`
 	} `json:"kafka"`
 
 	Logger struct {
@@ -80,6 +81,9 @@ func validate(conf Config) error {
 
 	if len(conf.Kafka.Brokers) == 0 {
 		return fmt.Errorf("kafka.brokers are required")
+	}
+	if conf.Kafka.ValidationsTopic == "" {
+		return fmt.Errorf("kafka.validationsTopic is required")
 	}
 
 	if conf.Logger.Level == "" {

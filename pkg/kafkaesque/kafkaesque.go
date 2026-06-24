@@ -10,7 +10,7 @@ import (
 
 // Client represents a generic Kafka client.
 type Client interface {
-	Produce(ctx context.Context) error
+	Produce(ctx context.Context, topic string, payload []byte, headers map[string]string) error
 	Close(ctx context.Context) error
 }
 
@@ -36,7 +36,11 @@ func NewFranzGoClient(ctx context.Context, params ClientParams) (*FranzGoClient,
 	}
 
 	// Common config.
-	opts := []kgo.Opt{kgo.SeedBrokers(params.Brokers...)}
+	opts := []kgo.Opt{
+		kgo.SeedBrokers(params.Brokers...),
+		kgo.RecordPartitioner(kgo.RoundRobinPartitioner()),
+		// franz-go already has sensible defaults for configs like RetryCount and RetryBackoff.
+	}
 
 	// Enable SCRAM-SHA and TLS if username and password provided.
 	if params.Username != "" && params.Password != "" {
@@ -71,7 +75,23 @@ func NewFranzGoClient(ctx context.Context, params ClientParams) (*FranzGoClient,
 	return &FranzGoClient{client: cl}, nil
 }
 
-func (f *FranzGoClient) Produce(ctx context.Context) error {
+func (f *FranzGoClient) Produce(
+	ctx context.Context, topic string, payload []byte, headers map[string]string,
+) error {
+	// Form message.
+	record := kgo.SliceRecord(payload)
+	for key, value := range headers {
+		record.Headers = append(record.Headers, kgo.RecordHeader{Key: key, Value: []byte(value)})
+	}
+
+	// Attach topic.
+	record.Topic = topic
+
+	// Produce.
+	if err := f.client.ProduceSync(ctx, record).FirstErr(); err != nil {
+		return fmt.Errorf("failed to produce message: %w", err)
+	}
+
 	return nil
 }
 
