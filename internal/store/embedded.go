@@ -25,10 +25,18 @@ func NewEmbedded(ctx context.Context, filePath string) (*Embedded, error) {
 		return nil, fmt.Errorf("failed to create parent directory for the database file: %w", err)
 	}
 
-	db, err := sql.Open("sqlite", filePath)
+	// busy_timeout(5000): Wait up to 5s for a lock before returning SQLITE_BUSY.
+	// journal_mode(WAL): Allow concurrent reads and writes via write-ahead logging.
+	dsn := fmt.Sprintf(`file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)`, filePath)
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("error in sql.Open call: %w", err)
 	}
+
+	// SQLite only supports one writer at a time. Limiting to one connection serializes
+	// all writes and prevents SQLITE_BUSY from concurrent write attempts within this process.
+	db.SetMaxOpenConns(1)
 
 	// Ping to ensure connection health.
 	if err := db.PingContext(ctx); err != nil {
