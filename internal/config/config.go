@@ -38,10 +38,15 @@ type Config struct {
 		Addr string `json:"addr"`
 	} `json:"ripple"`
 
-	ValidationStream struct {
+	VSC struct {
 		MaxBatchSize      int `json:"maxBatchSize"`
 		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
-	} `json:"validationStream"`
+	} `json:"vsc"`
+
+	DKS struct {
+		MaxBatchSize    int `json:"maxBatchSize"`
+		PollIntervalSec int `json:"pollIntervalSec"`
+	} `json:"dks"`
 }
 
 // Load config from the given JSON file.
@@ -94,11 +99,18 @@ func validate(conf Config) error {
 		return fmt.Errorf("ripple.addr is required")
 	}
 
-	if conf.ValidationStream.MaxBatchSize < 1 {
-		return fmt.Errorf("validationStream.maxBatchSize is required")
+	if conf.VSC.MaxBatchSize < 1 {
+		return fmt.Errorf("vsc.maxBatchSize is required")
 	}
-	if conf.ValidationStream.AutoFlushDelaySec < 1 {
-		return fmt.Errorf("validationStream.autoFlushDelaySec is required")
+	if conf.VSC.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("vsc.autoFlushDelaySec is required")
+	}
+
+	if conf.DKS.MaxBatchSize < 1 {
+		return fmt.Errorf("dks.maxBatchSize is required")
+	}
+	if conf.DKS.PollIntervalSec < 1 {
+		return fmt.Errorf("dks.pollIntervalSec is required")
 	}
 
 	return nil

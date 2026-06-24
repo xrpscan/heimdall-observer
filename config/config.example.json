@@ -22,8 +22,12 @@
   "ripple": {
     "addr": "wss://xrplcluster.com"
   },
-  "validationStream": {
+  "vsc": {
     "maxBatchSize": 50,
     "autoFlushDelaySec": 30
+  },
+  "dks": {
+    "maxBatchSize": 50,
+    "pollIntervalSec": 30
   }
 }

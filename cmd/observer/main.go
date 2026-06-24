@@ -100,7 +100,7 @@ func main() {
 
 	// The two main long-running processes of the application.
 	startVSC(ctx, conf, reg, validationStreamChan, embedded)
-	startDKS(ctx, reg, embedded, kProducerFunc)
+	startDKS(ctx, conf, reg, embedded, kProducerFunc)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
@@ -178,8 +178,8 @@ func startVSC(
 	validationStreamChan <-chan rippled.MessageValidationReceived, embedded store.Client,
 ) {
 	// Parse relevant config.
-	mbs := conf.ValidationStream.MaxBatchSize
-	afd := time.Duration(conf.ValidationStream.AutoFlushDelaySec) * time.Second
+	mbs := conf.VSC.MaxBatchSize
+	afd := time.Duration(conf.VSC.AutoFlushDelaySec) * time.Second
 
 	// Instantiate the validation stream consumer.
 	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded, mbs, afd)
@@ -197,10 +197,15 @@ func startVSC(
 
 // startDKS starts and registers the Database-Kafka Synchronizer.
 func startDKS(
-	ctx context.Context, reg *registry.Registry, embedded store.Client, kafkaProducer any,
+	ctx context.Context, conf config.Config, reg *registry.Registry,
+	embedded store.Client, kafkaProducer proc.ProducerFunc,
 ) {
+	// Parse relevant config.
+	mbs := conf.DKS.MaxBatchSize
+	pin := time.Duration(conf.DKS.PollIntervalSec) * time.Second
+
 	// Instantiate the database -> kafka synchronizer.
-	dks := proc.NewDatabaseKafkaSynchronizer(embedded, kafkaProducer)
+	dks := proc.NewDatabaseKafkaSynchronizer(embedded, kafkaProducer, mbs, pin)
 
 	// DKS is intentionally registered after the embedded database and the Kafka producer, since
 	// they should close after DKS.
