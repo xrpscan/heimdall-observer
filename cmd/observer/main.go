@@ -16,6 +16,7 @@ import (
 	"github.com/shivanshkc/observer/internal/proc"
 	"github.com/shivanshkc/observer/internal/rest"
 	"github.com/shivanshkc/observer/internal/store"
+	"github.com/shivanshkc/observer/pkg/kafkaesque"
 	"github.com/shivanshkc/observer/pkg/registry"
 	"github.com/shivanshkc/observer/pkg/rippled"
 )
@@ -66,6 +67,22 @@ func main() {
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
+	// Create Kafka client.
+	kafkaClient, err := kafkaesque.NewFranzGoClient(ctx, kafkaesque.ClientParams{
+		Brokers:    conf.Kafka.Brokers,
+		Username:   conf.Kafka.Username,
+		Password:   conf.Kafka.Password,
+		CACertPath: conf.Kafka.CACertPath,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to create kafka client", "error", err)
+		return
+	}
+
+	// Register Kafka client for cleanup.
+	reg.Register("kafka-client", kafkaClient)
+	slog.InfoContext(ctx, "successfully connected to Kafka", "brokers", conf.Kafka.Brokers)
+
 	// Create http server and start listening.
 	setupHttpServer(ctx, cancel, conf, reg)
 
@@ -78,7 +95,9 @@ func main() {
 
 	// The two main long-running processes of the application.
 	startVSC(ctx, conf, reg, validationStreamChan, embedded)
-	startDKS(ctx, reg, embedded, nil)
+	startDKS(ctx, reg, embedded, func(ctx context.Context, message any) error {
+		return kafkaClient.Produce(ctx /* TODO */)
+	})
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()

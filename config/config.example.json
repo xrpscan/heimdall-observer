@@ -7,6 +7,12 @@
     "allowedOrigins": ["*"],
     "corsMaxAgeSec": 86400
   },
+  "kafka": {
+    "brokers": ["localhost:19092", "localhost:29092", "localhost:39092"],
+    "username": "something",
+    "password": "secret",
+    "caCertPath": "/path/to/ca/cert"
+  },
   "logger": {
     "filePath": "./logs/observer.log",
     "level": "debug",

@@ -3,7 +3,7 @@ SHELL=/usr/bin/env bash
 application_name        = observer
 application_binary_name = observer
 
-database_dsn = 'sqlite3://./observer.db'
+database_dsn = 'sqlite3://data/observer.db'
 
 # Support both podman and docker.
 DOCKER=$(shell which podman || which docker || echo 'docker')
