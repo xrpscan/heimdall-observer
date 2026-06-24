@@ -99,7 +99,7 @@ func main() {
 	}
 
 	// The two main long-running processes of the application.
-	startVSC(ctx, conf, reg, validationStreamChan, embedded)
+	startVSP(ctx, conf, reg, validationStreamChan, embedded)
 	startDKS(ctx, conf, reg, embedded, kProducerFunc)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
@@ -172,26 +172,26 @@ func setupRipple(
 	return validationStreamChan, nil
 }
 
-// startVSC starts and registers the Validation Stream Consumer.
-func startVSC(
+// startVSP starts and registers the Validation Stream Processor.
+func startVSP(
 	ctx context.Context, conf config.Config, reg *registry.Registry,
 	validationStreamChan <-chan rippled.MessageValidationReceived, embedded store.Client,
 ) {
 	// Parse relevant config.
-	mbs := conf.VSC.MaxBatchSize
-	afd := time.Duration(conf.VSC.AutoFlushDelaySec) * time.Second
+	mbs := conf.ValidationStreamProcessor.MaxBatchSize
+	afd := time.Duration(conf.ValidationStreamProcessor.AutoFlushDelaySec) * time.Second
 
-	// Instantiate the validation stream consumer.
-	vsc := proc.NewValidationStreamConsumer(validationStreamChan, embedded, mbs, afd)
+	// Instantiate the validation stream processor.
+	vsp := proc.NewValidationStreamProcessor(validationStreamChan, embedded, mbs, afd)
 
-	// VSC is registered after the embedded database so it closes before the database.
-	// This is done to make sure that database is running while VSC runs its flush operations.
-	reg.Register("validation-stream-consumer", vsc)
+	// VSP is registered after the embedded database so it closes before the database.
+	// This is done to make sure that database is running while VSP runs its flush operations.
+	reg.Register("validation-stream-processor", vsp)
 
-	// Start consuming the stream.
-	go vsc.Start(ctx)
+	// Start reading the stream.
+	go vsp.Start(ctx)
 
-	slog.InfoContext(ctx, "starting validation stream consumption",
+	slog.InfoContext(ctx, "starting the validation stream processor",
 		"maxBatchSize", mbs, "autoFlushDelay", afd)
 }
 
@@ -201,8 +201,8 @@ func startDKS(
 	embedded store.Client, kafkaProducer proc.ProducerFunc,
 ) {
 	// Parse relevant config.
-	mbs := conf.DKS.MaxBatchSize
-	pin := time.Duration(conf.DKS.PollIntervalSec) * time.Second
+	mbs := conf.DatabaseKafkaSynchronizer.MaxBatchSize
+	pin := time.Duration(conf.DatabaseKafkaSynchronizer.PollIntervalSec) * time.Second
 
 	// Instantiate the database -> kafka synchronizer.
 	dks := proc.NewDatabaseKafkaSynchronizer(embedded, kafkaProducer, mbs, pin)

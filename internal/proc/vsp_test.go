@@ -16,7 +16,7 @@ const (
 	testAutoFlushDelay = time.Minute
 )
 
-func TestVSC_ConsumesMessages(t *testing.T) {
+func TestVSP_ConsumesMessages(t *testing.T) {
 	t.Parallel()
 
 	var received []rippled.MessageValidationReceived
@@ -28,7 +28,7 @@ func TestVSC_ConsumesMessages(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
+	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -39,7 +39,7 @@ func TestVSC_ConsumesMessages(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		vsc.Start(ctx)
+		vsp.Start(ctx)
 		close(done)
 	}()
 
@@ -52,7 +52,7 @@ func TestVSC_ConsumesMessages(t *testing.T) {
 	require.Len(t, received, testBatchSize)
 }
 
-func TestVSC_StartExitsOnContextCancel(t *testing.T) {
+func TestVSP_StartExitsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockStoreClient{
@@ -62,13 +62,13 @@ func TestVSC_StartExitsOnContextCancel(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived)
-	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
+	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan struct{})
 	go func() {
-		vsc.Start(ctx)
+		vsp.Start(ctx)
 		close(done)
 	}()
 
@@ -81,7 +81,7 @@ func TestVSC_StartExitsOnContextCancel(t *testing.T) {
 	}
 }
 
-func TestVSC_CloseFlushesRemaining(t *testing.T) {
+func TestVSP_CloseFlushesRemaining(t *testing.T) {
 	t.Parallel()
 
 	var received []rippled.MessageValidationReceived
@@ -93,7 +93,7 @@ func TestVSC_CloseFlushesRemaining(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
+	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -104,7 +104,7 @@ func TestVSC_CloseFlushesRemaining(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		vsc.Start(ctx)
+		vsp.Start(ctx)
 		close(done)
 	}()
 
@@ -118,11 +118,11 @@ func TestVSC_CloseFlushesRemaining(t *testing.T) {
 	<-done
 
 	// Close flushes the remaining items.
-	require.NoError(t, vsc.Close(context.Background()))
+	require.NoError(t, vsp.Close(context.Background()))
 	require.Len(t, received, testBatchSize-1)
 }
 
-func TestVSC_CloseReturnsError(t *testing.T) {
+func TestVSP_CloseReturnsError(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockStoreClient{
@@ -132,7 +132,7 @@ func TestVSC_CloseReturnsError(t *testing.T) {
 	}
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
-	vsc := NewValidationStreamConsumer(stream, mock, testBatchSize, testAutoFlushDelay)
+	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -140,7 +140,7 @@ func TestVSC_CloseReturnsError(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		vsc.Start(ctx)
+		vsp.Start(ctx)
 		close(done)
 	}()
 
@@ -149,12 +149,12 @@ func TestVSC_CloseReturnsError(t *testing.T) {
 	cancel()
 	<-done
 
-	err := vsc.Close(context.Background())
+	err := vsp.Close(context.Background())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "db down")
 }
 
-func TestVSC_AutoFlush(t *testing.T) {
+func TestVSP_AutoFlush(t *testing.T) {
 	t.Parallel()
 
 	var received []rippled.MessageValidationReceived
@@ -167,7 +167,7 @@ func TestVSC_AutoFlush(t *testing.T) {
 
 	stream := make(chan rippled.MessageValidationReceived, 100)
 	// High batch size so threshold is never hit; short auto-flush delay.
-	vsc := NewValidationStreamConsumer(stream, mock, 1000, 100*time.Millisecond)
+	vsp := NewValidationStreamProcessor(stream, mock, 1000, 100*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -177,14 +177,14 @@ func TestVSC_AutoFlush(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		vsc.Start(ctx)
+		vsp.Start(ctx)
 		close(done)
 	}()
 
 	// Wait for stream to drain.
 	require.Eventually(t, func() bool { return len(stream) == 0 }, 2*time.Second, 10*time.Millisecond)
 	// Wait for auto-flush to happen.
-	time.Sleep(2 * vsc.autoFlushDelay)
+	time.Sleep(2 * vsp.autoFlushDelay)
 
 	// Signal Start to return and wait for it.
 	cancel()

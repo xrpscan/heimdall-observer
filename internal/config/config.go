@@ -38,15 +38,15 @@ type Config struct {
 		Addr string `json:"addr"`
 	} `json:"ripple"`
 
-	VSC struct {
+	ValidationStreamProcessor struct {
 		MaxBatchSize      int `json:"maxBatchSize"`
 		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
-	} `json:"vsc"`
+	} `json:"validationStreamProcessor"`
 
-	DKS struct {
+	DatabaseKafkaSynchronizer struct {
 		MaxBatchSize    int `json:"maxBatchSize"`
 		PollIntervalSec int `json:"pollIntervalSec"`
-	} `json:"dks"`
+	} `json:"databaseKafkaSynchronizer"`
 }
 
 // Load config from the given JSON file.
@@ -99,18 +99,18 @@ func validate(conf Config) error {
 		return fmt.Errorf("ripple.addr is required")
 	}
 
-	if conf.VSC.MaxBatchSize < 1 {
-		return fmt.Errorf("vsc.maxBatchSize is required")
+	if conf.ValidationStreamProcessor.MaxBatchSize < 1 {
+		return fmt.Errorf("validationStreamProcessor.maxBatchSize is required")
 	}
-	if conf.VSC.AutoFlushDelaySec < 1 {
-		return fmt.Errorf("vsc.autoFlushDelaySec is required")
+	if conf.ValidationStreamProcessor.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("validationStreamProcessor.autoFlushDelaySec is required")
 	}
 
-	if conf.DKS.MaxBatchSize < 1 {
-		return fmt.Errorf("dks.maxBatchSize is required")
+	if conf.DatabaseKafkaSynchronizer.MaxBatchSize < 1 {
+		return fmt.Errorf("databaseKafkaSynchronizer.maxBatchSize is required")
 	}
-	if conf.DKS.PollIntervalSec < 1 {
-		return fmt.Errorf("dks.pollIntervalSec is required")
+	if conf.DatabaseKafkaSynchronizer.PollIntervalSec < 1 {
+		return fmt.Errorf("databaseKafkaSynchronizer.pollIntervalSec is required")
 	}
 
 	return nil

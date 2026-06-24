@@ -22,11 +22,11 @@
   "ripple": {
     "addr": "wss://xrplcluster.com"
   },
-  "vsc": {
+  "validationStreamProcessor": {
     "maxBatchSize": 50,
     "autoFlushDelaySec": 30
   },
-  "dks": {
+  "databaseKafkaSynchronizer": {
     "maxBatchSize": 50,
     "pollIntervalSec": 30
   }
