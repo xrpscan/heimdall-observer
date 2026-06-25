@@ -73,6 +73,7 @@ func main() {
 		Username:   conf.Kafka.Username,
 		Password:   conf.Kafka.Password,
 		CACertPath: conf.Kafka.CACertPath,
+		Logger:     slog.Default(),
 	})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create kafka client", "error", err)
