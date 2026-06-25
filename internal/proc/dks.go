@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/shivanshkc/observer/internal/store"
+	"github.com/xrpscan/heimdall-observer/internal/store"
 )
 
 // ProducerFunc represents a Kafka producer.

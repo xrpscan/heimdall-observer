@@ -1,4 +1,4 @@
-module github.com/shivanshkc/observer
+module github.com/xrpscan/heimdall-observer
 
 go 1.26
 

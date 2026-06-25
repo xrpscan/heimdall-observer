@@ -31,7 +31,7 @@ The binary accepts `-config <path>` (default: `config/config.json`).
 
 ## Tech stack
 
-- Go 1.26, module path `github.com/shivanshkc/observer`
+- Go 1.26, module path `github.com/xrpscan/heimdall-observer`
 - `coder/websocket` for the rippled WebSocket connection
 - `modernc.org/sqlite` (pure-Go SQLite driver, no CGo)
 - `golang-migrate` for schema migrations

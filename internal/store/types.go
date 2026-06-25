@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 )
 
 // ValidationMessageRow is the schema of a single row in the "validations" table.

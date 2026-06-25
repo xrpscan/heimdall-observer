@@ -3,8 +3,8 @@ package proc
 import (
 	"context"
 
-	"github.com/shivanshkc/observer/internal/store"
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/internal/store"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 )
 
 // mockStoreClient implements store.Client for testing.

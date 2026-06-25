@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 
 	_ "modernc.org/sqlite"
 )

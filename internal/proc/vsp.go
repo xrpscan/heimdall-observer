@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/shivanshkc/observer/internal/store"
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/internal/store"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 )
 
 // ValidationStreamProcessor is an abstraction to read a stream of validationReceived messages

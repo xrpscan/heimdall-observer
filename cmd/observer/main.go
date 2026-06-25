@@ -11,14 +11,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shivanshkc/observer/internal/config"
-	"github.com/shivanshkc/observer/internal/logger"
-	"github.com/shivanshkc/observer/internal/proc"
-	"github.com/shivanshkc/observer/internal/rest"
-	"github.com/shivanshkc/observer/internal/store"
-	"github.com/shivanshkc/observer/pkg/kafkaesque"
-	"github.com/shivanshkc/observer/pkg/registry"
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/internal/config"
+	"github.com/xrpscan/heimdall-observer/internal/logger"
+	"github.com/xrpscan/heimdall-observer/internal/proc"
+	"github.com/xrpscan/heimdall-observer/internal/rest"
+	"github.com/xrpscan/heimdall-observer/internal/store"
+	"github.com/xrpscan/heimdall-observer/pkg/kafkaesque"
+	"github.com/xrpscan/heimdall-observer/pkg/registry"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 )
 
 func main() {

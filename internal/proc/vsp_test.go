@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 
 	"github.com/stretchr/testify/require"
 )

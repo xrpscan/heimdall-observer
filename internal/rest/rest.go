@@ -3,8 +3,8 @@ package rest
 import (
 	"net/http"
 
-	"github.com/shivanshkc/observer/internal/config"
-	"github.com/shivanshkc/observer/pkg/httputils"
+	"github.com/xrpscan/heimdall-observer/internal/config"
+	"github.com/xrpscan/heimdall-observer/pkg/httputils"
 )
 
 // maxBodyReadBytes is the max size that a request body is allowed to have.

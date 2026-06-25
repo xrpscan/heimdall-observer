@@ -3,7 +3,7 @@ package store
 import (
 	"context"
 
-	"github.com/shivanshkc/observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/rippled"
 )
 
 // Client for the application's storage layer.

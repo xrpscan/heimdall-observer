@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/shivanshkc/observer/internal/logger"
-	"github.com/shivanshkc/observer/pkg/httputils"
+	"github.com/xrpscan/heimdall-observer/internal/logger"
+	"github.com/xrpscan/heimdall-observer/pkg/httputils"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
