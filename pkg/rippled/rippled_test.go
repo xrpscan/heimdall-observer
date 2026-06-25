@@ -65,8 +65,12 @@ func TestClient_CloseRespectsContext(t *testing.T) {
 	canceledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err = client.Close(canceledCtx)
-	require.ErrorIs(t, err, context.Canceled)
+	// It may be possible that the read loop stops too quickly such that the select-case inside the
+	// Close method chooses the other branch over <-ctx.Done().
+	// In that case, an error won't be returned. But if it does, it must be context.Canceled.
+	if err := client.Close(canceledCtx); err != nil {
+		require.ErrorIs(t, err, context.Canceled)
+	}
 }
 
 func TestClient_SubscribeValidationStream_Success(t *testing.T) {
@@ -172,6 +176,11 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 		if _, err := respondToSubscribe(ctx, conn); err != nil {
 			return
 		}
+
+		// Wait for sometime before publishing messages.
+		// Without this, the first message may arrive too quickly, even before the subscription is
+		// set to active in the rippled client.
+		time.Sleep(100 * time.Millisecond)
 
 		hashes := []string{"AAA", "BBB", "CCC"}
 		for _, h := range hashes {
