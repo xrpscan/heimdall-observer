@@ -10,6 +10,8 @@ import (
 // mockStoreClient implements store.Client for testing.
 type mockStoreClient struct {
 	bulkInsertFn func(ctx context.Context, messages []rippled.MessageValidationReceived) error
+	listFn       func(ctx context.Context, limit int) ([]store.ValidationMessageRow, error)
+	deleteFn     func(ctx context.Context, ids []int) error
 }
 
 func (m *mockStoreClient) BulkInsertValidationMessages(ctx context.Context, messages []rippled.MessageValidationReceived) error {
@@ -17,9 +19,9 @@ func (m *mockStoreClient) BulkInsertValidationMessages(ctx context.Context, mess
 }
 
 func (m *mockStoreClient) ListValidationMessages(ctx context.Context, limit int) ([]store.ValidationMessageRow, error) {
-	panic("unimplemented")
+	return m.listFn(ctx, limit)
 }
 
 func (m *mockStoreClient) DeleteValidationMessages(ctx context.Context, ids []int) error {
-	panic("unimplemented")
+	return m.deleteFn(ctx, ids)
 }
