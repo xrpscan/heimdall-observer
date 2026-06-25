@@ -221,7 +221,7 @@ func TestList_MessageContentRoundTrip(t *testing.T) {
 		ValidationPublicKey: "nHB1X37qrni",
 		Full:                true,
 		Flags:               0x80000001,
-		SigningTime:          1234567890,
+		SigningTime:         1234567890,
 	}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, []rippled.MessageValidationReceived{original}))
 
