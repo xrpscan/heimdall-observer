@@ -8,28 +8,30 @@ import (
 	"github.com/twmb/franz-go/pkg/sasl/scram"
 )
 
-// Client represents a generic Kafka client.
-type Client interface {
-	Produce(ctx context.Context, topic string, payload []byte, headers map[string]string) error
+// Producer represents a generic Kafka Producer.
+type Producer interface {
+	Produce(ctx context.Context, payload []byte, headers map[string]string) error
 	Close(ctx context.Context) error
 }
 
-// FranzGoClient implements [Client] using franz-go.
-type FranzGoClient struct {
+// FranzGoProducer implements [Producer] using github.com/twmb/franz-go.
+type FranzGoProducer struct {
 	client *kgo.Client
 }
 
-// ClientParams contain params required to create a Kafka client.
-type ClientParams struct {
-	Brokers            []string
-	Username, Password string
-	CACertPath         string
+// ProducerParams contain params required to create a Kafka Producer.
+type ProducerParams struct {
+	Brokers    []string
+	Username   string
+	Password   string
+	CACertPath string
+	Topic      string
 
 	Logger Logger
 }
 
-// NewFranzGoClient returns a new FranzGoClient instance.
-func NewFranzGoClient(ctx context.Context, params ClientParams) (*FranzGoClient, error) {
+// NewFranzGoProducer returns a new FranzGoProducer instance.
+func NewFranzGoProducer(ctx context.Context, params ProducerParams) (*FranzGoProducer, error) {
 	// Logger is optional.
 	if params.Logger == nil {
 		params.Logger = noopLogger{}
@@ -38,6 +40,7 @@ func NewFranzGoClient(ctx context.Context, params ClientParams) (*FranzGoClient,
 	// Common config.
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(params.Brokers...),
+		kgo.DefaultProduceTopic(params.Topic),
 		kgo.RecordPartitioner(kgo.RoundRobinPartitioner()),
 		// franz-go already has sensible defaults for configs like RetryCount and RetryBackoff.
 	}
@@ -72,20 +75,17 @@ func NewFranzGoClient(ctx context.Context, params ClientParams) (*FranzGoClient,
 		return nil, fmt.Errorf("failed to ping kafka cluster: %w", err)
 	}
 
-	return &FranzGoClient{client: cl}, nil
+	return &FranzGoProducer{client: cl}, nil
 }
 
-func (f *FranzGoClient) Produce(
-	ctx context.Context, topic string, payload []byte, headers map[string]string,
+func (f *FranzGoProducer) Produce(
+	ctx context.Context, payload []byte, headers map[string]string,
 ) error {
 	// Form message.
 	record := kgo.SliceRecord(payload)
 	for key, value := range headers {
 		record.Headers = append(record.Headers, kgo.RecordHeader{Key: key, Value: []byte(value)})
 	}
-
-	// Attach topic.
-	record.Topic = topic
 
 	// Produce.
 	if err := f.client.ProduceSync(ctx, record).FirstErr(); err != nil {
@@ -95,7 +95,7 @@ func (f *FranzGoClient) Produce(
 	return nil
 }
 
-func (f *FranzGoClient) Close(_ context.Context) error {
+func (f *FranzGoProducer) Close(_ context.Context) error {
 	f.client.Close()
 	return nil
 }

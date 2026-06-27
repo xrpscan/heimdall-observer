@@ -67,21 +67,22 @@ func main() {
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
-	// Create Kafka client.
-	kafkaClient, err := kafkaesque.NewFranzGoClient(ctx, kafkaesque.ClientParams{
+	// Create Kafka Producer.
+	kafkaProducer, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
 		Brokers:    conf.Kafka.Brokers,
 		Username:   conf.Kafka.Username,
 		Password:   conf.Kafka.Password,
 		CACertPath: conf.Kafka.CACertPath,
+		Topic:      conf.Kafka.ValidationsTopic,
 		Logger:     slog.Default(),
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create kafka client", "error", err)
+		slog.ErrorContext(ctx, "failed to create kafka producer", "error", err)
 		return
 	}
 
-	// Register Kafka client for cleanup.
-	reg.Register("kafka-client", kafkaClient)
+	// Register Kafka Producer for cleanup.
+	reg.Register("kafka-producer", kafkaProducer)
 	slog.InfoContext(ctx, "successfully connected to Kafka", "brokers", conf.Kafka.Brokers)
 
 	// Create http server and start listening.
@@ -94,14 +95,9 @@ func main() {
 		return
 	}
 
-	// Function to produce Kafka messages to a fixed topic.
-	kProducerFunc := func(ctx context.Context, payload []byte, headers map[string]string) error {
-		return kafkaClient.Produce(ctx, conf.Kafka.ValidationsTopic, payload, headers)
-	}
-
 	// The two main long-running processes of the application.
 	startVSP(ctx, conf, reg, validationStreamChan, embedded)
-	startDKS(ctx, conf, reg, embedded, kProducerFunc)
+	startDKS(ctx, conf, reg, embedded, kafkaProducer.Produce)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
