@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 )
 
 // ValidationMessageRow is the schema of a single row in the "validations" table.
 type ValidationMessageRow struct {
 	ID        int
-	Message   rippled.MessageValidationReceived
+	Message   xrpld.MessageValidationReceived
 	CreatedAt Timestamp
 }
 

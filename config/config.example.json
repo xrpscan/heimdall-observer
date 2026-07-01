@@ -19,7 +19,7 @@
     "level": "debug",
     "pretty": true
   },
-  "ripple": {
+  "xrpl": {
     "addr": "wss://xrplcluster.com"
   },
   "validationStreamProcessor": {

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 
 	_ "modernc.org/sqlite"
 )
@@ -47,7 +47,7 @@ func NewEmbedded(ctx context.Context, filePath string) (*Embedded, error) {
 }
 
 // BulkInsertValidationMessages implements [Client].
-func (e *Embedded) BulkInsertValidationMessages(ctx context.Context, messages []rippled.MessageValidationReceived) error {
+func (e *Embedded) BulkInsertValidationMessages(ctx context.Context, messages []xrpld.MessageValidationReceived) error {
 	// Form query.
 	query, args, err := e.queryBulkInsertValidationMessages(messages)
 	if err != nil {
@@ -147,7 +147,7 @@ func (e *Embedded) Close(ctx context.Context) error {
 }
 
 func (e *Embedded) queryBulkInsertValidationMessages(
-	messages []rippled.MessageValidationReceived,
+	messages []xrpld.MessageValidationReceived,
 ) (string, []any, error) {
 	var values string
 	args := make([]any, len(messages))

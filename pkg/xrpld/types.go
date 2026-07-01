@@ -1,4 +1,4 @@
-package rippled
+package xrpld
 
 import (
 	"errors"
@@ -51,7 +51,7 @@ type MessageValidationReceived struct {
 	// in fee units.
 	LoadFee int `json:"load_fee,omitempty"`
 	// (May be omitted) The validator's master public key, if the validator is using a validator
-	// token, in the XRP Ledger's base58 format. (See also: Enable Validation on your rippled Server.)
+	// token, in the XRP Ledger's base58 format. (See also: Enable Validation on your xrpld Server.)
 	MasterKey string `json:"master_key,omitempty"`
 	// (May be omitted) The minimum reserve requirement (account_reserve value) this validator wants
 	// to set by Fee Voting.
@@ -64,7 +64,7 @@ type MessageValidationReceived struct {
 	ServerVersion string `json:"server_version,omitempty"`
 	// The signature that the validator used to sign its vote for this ledger.
 	Signature string `json:"signature"`
-	// When this validation vote was signed, in seconds since the Ripple Epoch.
+	// When this validation vote was signed, in seconds since the XRPL Epoch.
 	SigningTime uint64 `json:"signing_time"`
 	// The unique hash of the proposed ledger this validation applies to.
 	ValidatedHash string `json:"validated_hash"`
@@ -75,14 +75,14 @@ type MessageValidationReceived struct {
 	ValidationPublicKey string `json:"validation_public_key"`
 }
 
-// subscriptionRequest is the schema of a subscription request for rippled.
+// subscriptionRequest is the schema of a subscription request for xrpld.
 type subscriptionRequest struct {
 	ID      any      `json:"id"`
 	Command string   `json:"command"`
 	Streams []string `json:"streams"`
 }
 
-// subscriptionResponse is the schema of the response that rippled gives for a subscription request.
+// subscriptionResponse is the schema of the response that xrpld gives for a subscription request.
 type subscriptionResponse struct {
 	ID     any    `json:"id"`
 	Status string `json:"status"`

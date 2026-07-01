@@ -18,7 +18,7 @@ import (
 	"github.com/xrpscan/heimdall-observer/internal/store"
 	"github.com/xrpscan/heimdall-observer/pkg/kafkaesque"
 	"github.com/xrpscan/heimdall-observer/pkg/registry"
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 )
 
 func main() {
@@ -88,10 +88,10 @@ func main() {
 	// Create http server and start listening.
 	setupHttpServer(ctx, cancel, conf, reg)
 
-	// Connect with rippled and subscribe to the validations stream.
-	validationStreamChan, err := setupRipple(ctx, cancel, conf, reg)
+	// Connect with xrpld and subscribe to the validations stream.
+	validationStreamChan, err := setupXRPL(ctx, cancel, conf, reg)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to setup ripple", "error", err)
+		slog.ErrorContext(ctx, "failed to setup xrpl", "error", err)
 		return
 	}
 
@@ -125,54 +125,54 @@ func setupHttpServer(
 	}()
 }
 
-// setupRipple establishes connection with rippled, registers it with the registry for cleanup.
-// It listens to rippled websocket errors asynchronously, and calls cancel if a fatal error occurs.
+// setupXRPL establishes connection with xrpld, registers it with the registry for cleanup.
+// It listens to xrpld websocket errors asynchronously, and calls cancel if a fatal error occurs.
 //
 // It also subscribes to the validation messages stream and returns a read only channel for the
 // caller to access it.
-func setupRipple(
+func setupXRPL(
 	ctx context.Context, cancel context.CancelFunc, conf config.Config, reg *registry.Registry,
-) (<-chan rippled.MessageValidationReceived, error) {
-	// Initiate rippled connection.
-	ripplec, err := rippled.NewClient(ctx, conf.Ripple.Addr)
+) (<-chan xrpld.MessageValidationReceived, error) {
+	// Initiate xrpld connection.
+	xClient, err := xrpld.NewClient(ctx, conf.XRPL.Addr)
 	if err != nil {
-		return nil, fmt.Errorf("error in rippled.NewClient call: %w", err)
+		return nil, fmt.Errorf("error in xrpld.NewClient call: %w", err)
 	}
 
-	// Register the ripple client for graceful closure.
-	reg.Register("ripple-client", ripplec)
-	slog.InfoContext(ctx, "successfully connected to rippled", "addr", conf.Ripple.Addr)
+	// Register the xrpl client for graceful closure.
+	reg.Register("xrpl-client", xClient)
+	slog.InfoContext(ctx, "successfully connected to xrpld", "addr", conf.XRPL.Addr)
 
-	// Goroutine to monitor rippled websocket errors.
+	// Goroutine to monitor xrpld websocket errors.
 	go func() {
 		// Signal the registry for closure.
 		defer cancel()
 
-		// Listen to rippled errors and trigger shutdown if fatal.
-		for err := range ripplec.Errors() {
+		// Listen to xrpld errors and trigger shutdown if fatal.
+		for err := range xClient.Errors() {
 			// If error is fatal, return from the goroutine, triggering shutdown.
-			if errors.Is(err, rippled.ErrFatal) {
-				slog.ErrorContext(ctx, "fatal error occurred inside rippled client", "error", err)
+			if errors.Is(err, xrpld.ErrFatal) {
+				slog.ErrorContext(ctx, "fatal error occurred inside xrpld client", "error", err)
 				return // trigger the `defer cancel()`
 			}
-			slog.ErrorContext(ctx, "non-fatal error occurred inside rippled client", "error", err)
+			slog.ErrorContext(ctx, "non-fatal error occurred inside xrpld client", "error", err)
 		}
 	}()
 
-	// Subscribe to rippled validation stream.
-	validationStreamChan, err := ripplec.SubscribeValidationStream(ctx)
+	// Subscribe to xrpld validation stream.
+	validationStreamChan, err := xClient.SubscribeValidationStream(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to rippled validation stream: %w", err)
+		return nil, fmt.Errorf("failed to subscribe to xrpld validation stream: %w", err)
 	}
 
-	slog.InfoContext(ctx, "successfully subscribed to the rippled validation stream")
+	slog.InfoContext(ctx, "successfully subscribed to the xrpld validation stream")
 	return validationStreamChan, nil
 }
 
 // startVSP starts and registers the Validation Stream Processor.
 func startVSP(
 	ctx context.Context, conf config.Config, reg *registry.Registry,
-	validationStreamChan <-chan rippled.MessageValidationReceived, embedded store.Client,
+	validationStreamChan <-chan xrpld.MessageValidationReceived, embedded store.Client,
 ) {
 	// Parse relevant config.
 	mbs := conf.ValidationStreamProcessor.MaxBatchSize

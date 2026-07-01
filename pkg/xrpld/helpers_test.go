@@ -1,4 +1,4 @@
-package rippled
+package xrpld
 
 import (
 	"context"

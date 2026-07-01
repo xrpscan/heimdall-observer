@@ -1,4 +1,4 @@
-package rippled
+package xrpld
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-// getRippleMessageType tries to parse the give json message and get the "type" key from it.
-func getRippleMessageType(message []byte) (string, error) {
+// getXRPLMessageType tries to parse the give json message and get the "type" key from it.
+func getXRPLMessageType(message []byte) (string, error) {
 	var typeDecoder struct {
 		Type string `json:"type"`
 	}

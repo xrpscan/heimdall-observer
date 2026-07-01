@@ -7,21 +7,21 @@ import (
 	"time"
 
 	"github.com/xrpscan/heimdall-observer/internal/store"
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 )
 
 // ValidationStreamProcessor is an abstraction to read a stream of validationReceived messages
-// from rippled and push them to an embedded database.
+// from xrpld and push them to an embedded database.
 type ValidationStreamProcessor struct {
 	embedded       store.Client
-	stream         <-chan rippled.MessageValidationReceived
-	batchProc      *batchProcessor[rippled.MessageValidationReceived]
+	stream         <-chan xrpld.MessageValidationReceived
+	batchProc      *batchProcessor[xrpld.MessageValidationReceived]
 	autoFlushDelay time.Duration
 }
 
 // NewValidationStreamProcessor creates a new [ValidationStreamProcessor] instance.
 func NewValidationStreamProcessor(
-	stream <-chan rippled.MessageValidationReceived,
+	stream <-chan xrpld.MessageValidationReceived,
 	embedded store.Client,
 	maxBatchSize int, autoFlushDelay time.Duration,
 ) *ValidationStreamProcessor {

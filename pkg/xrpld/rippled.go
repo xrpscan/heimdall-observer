@@ -1,4 +1,4 @@
-package rippled
+package xrpld
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Client represents a rippled server client.
+// Client represents a xrpld server client.
 type Client struct {
 	rootContext context.Context
 	rootCancel  context.CancelFunc
@@ -40,7 +40,7 @@ type Client struct {
 func NewClient(ctx context.Context, addr string) (*Client, error) {
 	rootContext, rootCancel := context.WithCancel(ctx)
 
-	// Establish websocket connection with the rippled server.
+	// Establish websocket connection with the xrpld server.
 	conn, response, err := websocket.Dial(rootContext, addr, nil)
 	if err != nil {
 		rootCancel()
@@ -186,15 +186,15 @@ func (c *Client) readLoop(ctx context.Context) {
 			continue
 		}
 
-		// Get Ripple's message type ("response", "validationReceived" etc)
-		rippleMessageType, err := getRippleMessageType(message)
+		// Get xrpl's message type ("response", "validationReceived" etc)
+		xrplMessageType, err := getXRPLMessageType(message)
 		if err != nil {
-			err := fmt.Errorf("failed to get ripple message type: %w", err)
+			err := fmt.Errorf("failed to get xrpl message type: %w", err)
 			sendContext(ctx, c.errorChan, err)
 			continue
 		}
 
-		switch rippleMessageType {
+		switch xrplMessageType {
 		case messageTypeResponse:
 			var response subscriptionResponse
 			if err := json.Unmarshal(message, &response); err != nil {
@@ -234,7 +234,7 @@ func (c *Client) readLoop(ctx context.Context) {
 
 			var validationMessage MessageValidationReceived
 			if err := json.Unmarshal(message, &validationMessage); err != nil {
-				err := fmt.Errorf("failed to unmarshal %s message: %w", rippleMessageType, err)
+				err := fmt.Errorf("failed to unmarshal %s message: %w", xrplMessageType, err)
 				sendContext(ctx, c.errorChan, err)
 				continue
 			}
@@ -242,7 +242,7 @@ func (c *Client) readLoop(ctx context.Context) {
 			sendContext(ctx, c.validationChan, validationMessage)
 
 		default:
-			err := fmt.Errorf("message of unknown type received: %s", rippleMessageType)
+			err := fmt.Errorf("message of unknown type received: %s", xrplMessageType)
 			sendContext(ctx, c.errorChan, err)
 		}
 	}

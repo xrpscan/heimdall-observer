@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,22 +19,22 @@ const (
 func TestVSP_ConsumesMessages(t *testing.T) {
 	t.Parallel()
 
-	var received []rippled.MessageValidationReceived
+	var received []xrpld.MessageValidationReceived
 	mock := &mockStoreClient{
-		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+		bulkInsertFn: func(_ context.Context, msgs []xrpld.MessageValidationReceived) error {
 			received = append(received, msgs...)
 			return nil
 		},
 	}
 
-	stream := make(chan rippled.MessageValidationReceived, 100)
+	stream := make(chan xrpld.MessageValidationReceived, 100)
 	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Send enough messages to trigger a batch flush.
 	for range testBatchSize {
-		stream <- rippled.MessageValidationReceived{LedgerHash: "A"}
+		stream <- xrpld.MessageValidationReceived{LedgerHash: "A"}
 	}
 
 	done := make(chan struct{})
@@ -56,12 +56,12 @@ func TestVSP_StartExitsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockStoreClient{
-		bulkInsertFn: func(_ context.Context, _ []rippled.MessageValidationReceived) error {
+		bulkInsertFn: func(_ context.Context, _ []xrpld.MessageValidationReceived) error {
 			return nil
 		},
 	}
 
-	stream := make(chan rippled.MessageValidationReceived)
+	stream := make(chan xrpld.MessageValidationReceived)
 	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,22 +84,22 @@ func TestVSP_StartExitsOnContextCancel(t *testing.T) {
 func TestVSP_CloseFlushesRemaining(t *testing.T) {
 	t.Parallel()
 
-	var received []rippled.MessageValidationReceived
+	var received []xrpld.MessageValidationReceived
 	mock := &mockStoreClient{
-		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+		bulkInsertFn: func(_ context.Context, msgs []xrpld.MessageValidationReceived) error {
 			received = append(received, msgs...)
 			return nil
 		},
 	}
 
-	stream := make(chan rippled.MessageValidationReceived, 100)
+	stream := make(chan xrpld.MessageValidationReceived, 100)
 	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// Send fewer than threshold so no auto-flush happens.
 	for range testBatchSize - 1 {
-		stream <- rippled.MessageValidationReceived{LedgerHash: "X"}
+		stream <- xrpld.MessageValidationReceived{LedgerHash: "X"}
 	}
 
 	done := make(chan struct{})
@@ -126,17 +126,17 @@ func TestVSP_CloseReturnsError(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockStoreClient{
-		bulkInsertFn: func(_ context.Context, _ []rippled.MessageValidationReceived) error {
+		bulkInsertFn: func(_ context.Context, _ []xrpld.MessageValidationReceived) error {
 			return errors.New("db down")
 		},
 	}
 
-	stream := make(chan rippled.MessageValidationReceived, 100)
+	stream := make(chan xrpld.MessageValidationReceived, 100)
 	vsp := NewValidationStreamProcessor(stream, mock, testBatchSize, testAutoFlushDelay)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	stream <- rippled.MessageValidationReceived{LedgerHash: "Y"}
+	stream <- xrpld.MessageValidationReceived{LedgerHash: "Y"}
 
 	done := make(chan struct{})
 	go func() {
@@ -157,22 +157,22 @@ func TestVSP_CloseReturnsError(t *testing.T) {
 func TestVSP_AutoFlush(t *testing.T) {
 	t.Parallel()
 
-	var received []rippled.MessageValidationReceived
+	var received []xrpld.MessageValidationReceived
 	mock := &mockStoreClient{
-		bulkInsertFn: func(_ context.Context, msgs []rippled.MessageValidationReceived) error {
+		bulkInsertFn: func(_ context.Context, msgs []xrpld.MessageValidationReceived) error {
 			received = append(received, msgs...)
 			return nil
 		},
 	}
 
-	stream := make(chan rippled.MessageValidationReceived, 100)
+	stream := make(chan xrpld.MessageValidationReceived, 100)
 	// High batch size so threshold is never hit; short auto-flush delay.
 	vsp := NewValidationStreamProcessor(stream, mock, 1000, 100*time.Millisecond)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	for range 3 {
-		stream <- rippled.MessageValidationReceived{LedgerHash: "Z"}
+		stream <- xrpld.MessageValidationReceived{LedgerHash: "Z"}
 	}
 
 	done := make(chan struct{})

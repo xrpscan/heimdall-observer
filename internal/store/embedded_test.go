@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +43,7 @@ func TestBulkInsert_Success(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "AAA", Full: true},
 		{LedgerHash: "BBB", Full: false},
 		{LedgerHash: "CCC", Full: true},
@@ -64,7 +64,7 @@ func TestBulkInsert_MessageContent(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "DEADBEEF", ValidationPublicKey: "nHB1X37qrni", Full: true, Flags: 0x80000001},
 	}
 
@@ -74,7 +74,7 @@ func TestBulkInsert_MessageContent(t *testing.T) {
 	err := e.db.QueryRowContext(ctx, "SELECT message FROM validations LIMIT 1").Scan(&stored)
 	require.NoError(t, err)
 
-	var parsed rippled.MessageValidationReceived
+	var parsed xrpld.MessageValidationReceived
 	require.NoError(t, json.Unmarshal([]byte(stored), &parsed))
 	require.Equal(t, "DEADBEEF", parsed.LedgerHash)
 	require.Equal(t, "nHB1X37qrni", parsed.ValidationPublicKey)
@@ -88,8 +88,8 @@ func TestBulkInsert_MultipleBatches(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	batch1 := []rippled.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
-	batch2 := []rippled.MessageValidationReceived{{LedgerHash: "C"}}
+	batch1 := []xrpld.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
+	batch2 := []xrpld.MessageValidationReceived{{LedgerHash: "C"}}
 
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, batch1))
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, batch2))
@@ -106,7 +106,7 @@ func TestBulkInsert_AutoIncrementIDs(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
+	messages := []xrpld.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
 
 	rows, err := e.db.QueryContext(ctx, "SELECT id FROM validations ORDER BY id")
@@ -129,7 +129,7 @@ func TestBulkInsert_CreatedAtPopulated(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{{LedgerHash: "X"}}
+	messages := []xrpld.MessageValidationReceived{{LedgerHash: "X"}}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
 
 	var createdAt string
@@ -160,7 +160,7 @@ func TestList_Success(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "AAA"},
 		{LedgerHash: "BBB"},
 		{LedgerHash: "CCC"},
@@ -188,7 +188,7 @@ func TestList_RespectsLimit(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "A"}, {LedgerHash: "B"}, {LedgerHash: "C"},
 		{LedgerHash: "D"}, {LedgerHash: "E"},
 	}
@@ -216,14 +216,14 @@ func TestList_MessageContentRoundTrip(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	original := rippled.MessageValidationReceived{
+	original := xrpld.MessageValidationReceived{
 		LedgerHash:          "DEADBEEF",
 		ValidationPublicKey: "nHB1X37qrni",
 		Full:                true,
 		Flags:               0x80000001,
 		SigningTime:         1234567890,
 	}
-	require.NoError(t, e.BulkInsertValidationMessages(ctx, []rippled.MessageValidationReceived{original}))
+	require.NoError(t, e.BulkInsertValidationMessages(ctx, []xrpld.MessageValidationReceived{original}))
 
 	rows, err := e.ListValidationMessages(ctx, 1)
 	require.NoError(t, err)
@@ -243,7 +243,7 @@ func TestDelete_Success(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "A"}, {LedgerHash: "B"}, {LedgerHash: "C"},
 	}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
@@ -262,7 +262,7 @@ func TestDelete_NonExistentID(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	require.NoError(t, e.BulkInsertValidationMessages(ctx, []rippled.MessageValidationReceived{{LedgerHash: "A"}}))
+	require.NoError(t, e.BulkInsertValidationMessages(ctx, []xrpld.MessageValidationReceived{{LedgerHash: "A"}}))
 
 	err := e.DeleteValidationMessages(ctx, []int{999})
 	require.Error(t, err)
@@ -275,7 +275,7 @@ func TestDelete_PartialMatch(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
+	messages := []xrpld.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
 
 	err := e.DeleteValidationMessages(ctx, []int{1, 999})
@@ -289,7 +289,7 @@ func TestInsertListDelete_RoundTrip(t *testing.T) {
 	e := newTestEmbedded(t)
 	ctx := context.Background()
 
-	messages := []rippled.MessageValidationReceived{
+	messages := []xrpld.MessageValidationReceived{
 		{LedgerHash: "X"}, {LedgerHash: "Y"}, {LedgerHash: "Z"},
 	}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))

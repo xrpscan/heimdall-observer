@@ -1,4 +1,4 @@
-package rippled
+package xrpld
 
 import (
 	"context"
@@ -179,7 +179,7 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 
 		// Wait for sometime before publishing messages.
 		// Without this, the first message may arrive too quickly, even before the subscription is
-		// set to active in the rippled client.
+		// set to active in the xrpld client.
 		time.Sleep(100 * time.Millisecond)
 
 		hashes := []string{"AAA", "BBB", "CCC"}

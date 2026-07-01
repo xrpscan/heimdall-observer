@@ -1,10 +1,10 @@
 # Heimdall Observer
 
-Connects to an [XRPL rippled](https://xrpl.org/) node via WebSocket, subscribes to the validation stream, batches incoming messages into an embedded SQLite database, and produces them to Kafka.
+Connects to an [xrpld](https://xrpl.org/) node via WebSocket, subscribes to the validation stream, batches incoming messages into an embedded SQLite database, and produces them to Kafka.
 
 ## How it works
 
-1. **Validation Stream Processor** subscribes to a rippled node's `validations` stream. Incoming messages arrive in bursts (~100-150 per ledger close, every 3-5 seconds). They are batched and inserted into SQLite.
+1. **Validation Stream Processor** subscribes to a xrpld node's `validations` stream. Incoming messages arrive in bursts (~100-150 per ledger close, every 3-5 seconds). They are batched and inserted into SQLite.
 
 2. **Database-Kafka Synchronizer** polls SQLite on an interval, produces each batch to a Kafka topic, and deletes the rows after successful production. SQLite acts as a durable buffer between the WebSocket stream and Kafka.
 
@@ -44,7 +44,7 @@ All fields are required unless noted otherwise.
 | `logger` | `filePath` | _(optional)_ Log file path. If empty, logs to stdout. Log rotation is handled automatically. |
 | | `level` | Log level: `debug`, `info`, `warn`, or `error`. |
 | | `pretty` | `true` for key=value format, `false` for JSON. |
-| `ripple` | `addr` | WebSocket URL of the rippled node (e.g. `wss://xrplcluster.com`). |
+| `xrpl` | `addr` | WebSocket URL of the xrpld node (e.g. `wss://xrplcluster.com`). |
 | `validationStreamProcessor` | `maxBatchSize` | Number of messages to accumulate before flushing to SQLite. |
 | | `autoFlushDelaySec` | Seconds to wait before auto-flushing a partial batch to SQLite. |
 | `databaseKafkaSynchronizer` | `maxBatchSize` | Max messages to produce into Kafka in a single payload. |

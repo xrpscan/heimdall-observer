@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/xrpscan/heimdall-observer/internal/store"
-	"github.com/xrpscan/heimdall-observer/pkg/rippled"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,8 +16,8 @@ const testPollInterval = 50 * time.Millisecond
 
 func testRows() []store.ValidationMessageRow {
 	return []store.ValidationMessageRow{
-		{ID: 1, Message: rippled.MessageValidationReceived{LedgerHash: "AAA"}},
-		{ID: 2, Message: rippled.MessageValidationReceived{LedgerHash: "BBB"}},
+		{ID: 1, Message: xrpld.MessageValidationReceived{LedgerHash: "AAA"}},
+		{ID: 2, Message: xrpld.MessageValidationReceived{LedgerHash: "BBB"}},
 	}
 }
 

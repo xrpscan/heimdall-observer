@@ -34,9 +34,9 @@ type Config struct {
 		Pretty   bool   `json:"pretty"`
 	} `json:"logger"`
 
-	Ripple struct {
+	XRPL struct {
 		Addr string `json:"addr"`
-	} `json:"ripple"`
+	} `json:"xrpl"`
 
 	ValidationStreamProcessor struct {
 		MaxBatchSize      int `json:"maxBatchSize"`
@@ -95,8 +95,8 @@ func validate(conf Config) error {
 		return fmt.Errorf("logger.level is required")
 	}
 
-	if conf.Ripple.Addr == "" {
-		return fmt.Errorf("ripple.addr is required")
+	if conf.XRPL.Addr == "" {
+		return fmt.Errorf("xrpl.addr is required")
 	}
 
 	if conf.ValidationStreamProcessor.MaxBatchSize < 1 {
