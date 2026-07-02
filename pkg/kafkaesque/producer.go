@@ -72,6 +72,7 @@ func NewFranzGoProducer(ctx context.Context, params ProducerParams) (*FranzGoPro
 
 	// Verify connection.
 	if err := cl.Ping(ctx); err != nil {
+		cl.Close()
 		return nil, fmt.Errorf("failed to ping kafka cluster: %w", err)
 	}
 
