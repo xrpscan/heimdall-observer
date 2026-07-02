@@ -149,8 +149,10 @@ func (e *Embedded) Close(ctx context.Context) error {
 func (e *Embedded) queryBulkInsertValidationMessages(
 	messages []xrpld.MessageValidationReceived,
 ) (string, []any, error) {
-	var values string
 	args := make([]any, len(messages))
+
+	var valueBuilder strings.Builder
+	valueBuilder.Grow(len(messages) * 7) // Reasonable buffer pre-allocation.
 
 	for i, message := range messages {
 		// Message needs to be marshalled since its type in the database is text.
@@ -159,23 +161,28 @@ func (e *Embedded) queryBulkInsertValidationMessages(
 			return "", nil, fmt.Errorf("failed to marshal message: %w", err)
 		}
 
-		values += fmt.Sprintf(`($%d), `, i+1)
+		fmt.Fprintf(&valueBuilder, `($%d), `, i+1)
 		args[i] = string(messageBytes)
 	}
 
 	// Remove trailing comma-space from the earlier string-building.
-	values = strings.TrimSuffix(values, ", ")
+	values := strings.TrimSuffix(valueBuilder.String(), ", ")
 	return `INSERT INTO validations (message) VALUES ` + values + ";", args, nil
 }
 
 func (e *Embedded) queryDeleteValidationMessages(ids []int) (string, []any) {
 	args := make([]any, len(ids))
-	arrString := "("
+
+	var builder strings.Builder
+	builder.Grow(len(ids) * 5) // Reasonable buffer pre-allocation.
+	builder.WriteString("(")
+
 	for i := range ids {
 		args[i] = ids[i]
-		arrString += fmt.Sprintf(`$%d, `, i+1)
+		fmt.Fprintf(&builder, `$%d, `, i+1)
 	}
-	arrString = strings.TrimSuffix(arrString, ", ")
+
+	arrString := strings.TrimSuffix(builder.String(), ", ")
 	arrString += ")"
 
 	return `DELETE FROM validations WHERE id IN ` + arrString, args
