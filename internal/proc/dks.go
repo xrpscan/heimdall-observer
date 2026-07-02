@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xrpscan/heimdall-observer/internal/store"
+	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 )
 
 // ProducerFunc represents a Kafka producer.
@@ -45,17 +46,23 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			// Poll database.
-			messages, err := d.embedded.ListValidationMessages(ctx, d.maxBatchSize)
+			rows, err := d.embedded.ListValidationMessages(ctx, d.maxBatchSize)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to list validation messages from db", "error", err)
 				continue
 			}
 
-			// If no messages, do not produce empty slice to Kafka.
-			count := len(messages)
+			// If no rows, do not produce empty slice to Kafka.
+			count := len(rows)
 			if count == 0 {
-				slog.DebugContext(ctx, "no messages to process")
+				slog.DebugContext(ctx, "no rows to process")
 				continue
+			}
+
+			// Only the validation message is produced to Kafka, not the whole row.
+			messages := make([]xrpld.MessageValidationReceived, len(rows))
+			for i, row := range rows {
+				messages[i] = row.Message
 			}
 
 			// Marshal messages for Kafka production.
@@ -73,7 +80,7 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 			slog.DebugContext(ctx, "successfully produced batch to kafka", "count", count)
 
 			// Clean from database.
-			if err := deleteValidationMessages(ctx, d.embedded, messages); err != nil {
+			if err := deleteValidationMessages(ctx, d.embedded, rows); err != nil {
 				slog.ErrorContext(ctx, "failed to delete produced messages from db", "error", err)
 				continue
 			}
