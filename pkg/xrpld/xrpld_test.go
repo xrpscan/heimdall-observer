@@ -49,6 +49,7 @@ func TestClient_Close(t *testing.T) {
 	// Verify channels are eventually closed (drain any pending values first).
 	requireChanClosed(t, client.Errors())
 	requireChanClosed(t, client.validationChan)
+	requireChanClosed(t, client.ledgerChan)
 }
 
 func TestClient_CloseRespectsContext(t *testing.T) {
@@ -204,6 +205,91 @@ func TestClient_ReadLoop_ValidationMessages(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{"AAA", "BBB", "CCC"}
+	for i, want := range expected {
+		select {
+		case msg := <-ch:
+			require.Equal(t, want, msg.LedgerHash)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out waiting for message %d", i)
+		}
+	}
+}
+
+func TestClient_SubscribeLedgerStream_Success(t *testing.T) {
+	t.Parallel()
+
+	url := startMockServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		req, err := respondToSubscribe(ctx, conn)
+		if err != nil {
+			return
+		}
+
+		require.Equal(t, "subscribe", req.Command)
+		require.Equal(t, []string{"ledger"}, req.Streams)
+
+		<-ctx.Done()
+	})
+
+	client, err := NewClient(context.Background(), url)
+	require.NoError(t, err)
+	defer func() { _ = client.Close(context.Background()) }()
+
+	ch, err := client.SubscribeLedgerStream(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, ch)
+}
+
+func TestClient_SubscribeLedgerStream_DuplicateSubscription(t *testing.T) {
+	t.Parallel()
+
+	url := startMockServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		_, _ = respondToSubscribe(ctx, conn)
+		<-ctx.Done()
+	})
+
+	client, err := NewClient(context.Background(), url)
+	require.NoError(t, err)
+	defer func() { _ = client.Close(context.Background()) }()
+
+	_, err = client.SubscribeLedgerStream(context.Background())
+	require.NoError(t, err)
+
+	_, err = client.SubscribeLedgerStream(context.Background())
+	require.ErrorIs(t, err, ErrStreamAlreadyOrBeingSubscribed)
+}
+
+func TestClient_ReadLoop_LedgerClosedMessages(t *testing.T) {
+	t.Parallel()
+
+	url := startMockServer(t, func(ctx context.Context, conn *websocket.Conn) {
+		if _, err := respondToSubscribe(ctx, conn); err != nil {
+			return
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		hashes := []string{"AAAA", "BBBB", "CCCC"}
+		for _, h := range hashes {
+			msg, _ := json.Marshal(map[string]any{
+				"type":        messageTypeLedgerClosed,
+				"ledger_hash": h,
+			})
+			if err := conn.Write(ctx, websocket.MessageText, msg); err != nil {
+				return
+			}
+		}
+
+		<-ctx.Done()
+	})
+
+	client, err := NewClient(context.Background(), url)
+	require.NoError(t, err)
+	defer func() { _ = client.Close(context.Background()) }()
+
+	ch, err := client.SubscribeLedgerStream(context.Background())
+	require.NoError(t, err)
+
+	expected := []string{"AAAA", "BBBB", "CCCC"}
 	for i, want := range expected {
 		select {
 		case msg := <-ch:

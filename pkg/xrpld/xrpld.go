@@ -27,6 +27,7 @@ type Client struct {
 	// 3. A key's value being true means that the subscription is active.
 	subscriptions  SyncMap[string, bool]
 	validationChan chan MessageValidationReceived
+	ledgerChan     chan MessageLedgerClosed
 
 	// All errors that need to be transmitted to the Client-owner are sent to this channel.
 	errorChan chan error
@@ -61,6 +62,9 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 		// This channel will receive validationReceived events.
 		// The buffer should be large enough to accommodate a slow consumer.
 		validationChan: make(chan MessageValidationReceived, 1000),
+		// This channel will receive ledgerClosed events.
+		// The buffer should be large enough to accommodate a slow consumer.
+		ledgerChan: make(chan MessageLedgerClosed, 1000),
 		// This channel will receive all errors.
 		// The buffer should be large enough to accommodate a slow consumer.
 		errorChan:       make(chan error, 1000),
@@ -109,16 +113,32 @@ func (c *Client) Errors() <-chan error {
 	return c.errorChan
 }
 
-// SubscribeValidationStream subscribes to the "validations" stream.
-func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageValidationReceived, error) {
+// subscribeStream can be used to subscribe to any xrpld stream. Notice that it does not return
+// any channel or any other way to read the stream once subscribed. That's because it is meant to be
+// used by higher-level methods such as [SubscribeValidationStream] and [SubscribeLedgerStream].
+func (c *Client) subscribeStream(ctx context.Context, stream string) error {
+	// We use message type (validationReceived, ledgerClosed) instead of stream name to keep track
+	// of subscriptions. This is because the incoming messages from the websocket connection do not
+	// mention the stream name but the message type. So, the read-loop should be able to verify if
+	// the subscription is active by using the message type.
+	var messageType string
+	switch stream {
+	case streamValidations:
+		messageType = messageTypeValidationReceived
+	case streamLedger:
+		messageType = messageTypeLedgerClosed
+	default:
+		return fmt.Errorf("unrecognized stream: %s", stream)
+	}
+
 	// Mark the subscription in progress if there's no entry for it yet.
-	if !c.subscriptions.StoreIfAbsent(messageTypeValidationReceived, false /* false means subscription is in progress */) {
-		return nil, ErrStreamAlreadyOrBeingSubscribed
+	if !c.subscriptions.StoreIfAbsent(messageType, false /* false means subscription is in progress */) {
+		return ErrStreamAlreadyOrBeingSubscribed
 	}
 
 	// If the subscription is still set to pending by the time the function is returning,
 	// it means that subscription failed. So, it should be cleaned up.
-	defer c.subscriptions.DeleteIf(messageTypeValidationReceived, func(v bool, exists bool) bool {
+	defer c.subscriptions.DeleteIf(messageType, func(v bool, exists bool) bool {
 		return exists && v == false //nolint:staticcheck // v == false is more readable to me.
 	})
 
@@ -126,9 +146,9 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	id := uuid.NewString()
 
 	// Form the request message.
-	message, err := json.Marshal(subscriptionRequest{ID: id, Command: "subscribe", Streams: []string{"validations"}})
+	message, err := json.Marshal(subscriptionRequest{ID: id, Command: "subscribe", Streams: []string{stream}})
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal subscription request: %w", err)
+		return fmt.Errorf("failed to marshal subscription request: %w", err)
 	}
 
 	waitChan := make(chan subscriptionResponse)
@@ -139,7 +159,7 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 
 	// Send the request message.
 	if err := c.connection.Write(ctx, websocket.MessageText, message); err != nil {
-		return nil, fmt.Errorf("failed to write subscription message to websocket: %w", err)
+		return fmt.Errorf("failed to write subscription message to websocket: %w", err)
 	}
 
 	// Await response while respecting context.
@@ -147,27 +167,44 @@ func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageV
 	case response := <-waitChan:
 		// Mostly a redundant check because read-loop matches IDs too, but doesn't hurt.
 		if response.ID != id {
-			return nil, fmt.Errorf("id mismatch, response id: %v, request id: %s", response.ID, id)
+			return fmt.Errorf("id mismatch, response id: %v, request id: %s", response.ID, id)
 		}
 
 		// Handle error response.
 		if response.Status != responseStatusSuccess {
-			return nil, fmt.Errorf("response status is not success: response: %+v", response)
+			return fmt.Errorf("response status is not success: response: %+v", response)
 		}
 	case <-ctx.Done():
-		return nil, fmt.Errorf("context canceled before receiving response: %w", ctx.Err())
+		return fmt.Errorf("context canceled before receiving response: %w", ctx.Err())
 	case <-c.rootContext.Done():
-		return nil, fmt.Errorf("root context canceled before receiving response: %w", c.rootContext.Err())
+		return fmt.Errorf("root context canceled before receiving response: %w", c.rootContext.Err())
 	}
 
-	c.subscriptions.Store(messageTypeValidationReceived, true /* true means that the subscription is active. */)
+	c.subscriptions.Store(messageType, true /* true means that the subscription is active. */)
+	return nil
+}
+
+// SubscribeValidationStream subscribes to the "validations" stream.
+func (c *Client) SubscribeValidationStream(ctx context.Context) (<-chan MessageValidationReceived, error) {
+	if err := c.subscribeStream(ctx, streamValidations); err != nil {
+		return nil, fmt.Errorf("failed to subscribe stream: %w", err)
+	}
 	return c.validationChan, nil
+}
+
+// SubscribeLedgerStream subscribes to the "ledger" stream.
+func (c *Client) SubscribeLedgerStream(ctx context.Context) (<-chan MessageLedgerClosed, error) {
+	if err := c.subscribeStream(ctx, streamLedger); err != nil {
+		return nil, fmt.Errorf("failed to subscribe stream: %w", err)
+	}
+	return c.ledgerChan, nil
 }
 
 func (c *Client) readLoop(ctx context.Context) {
 	// Read loop is the only write to these channels so it is responsible for closing them.
 	defer func() {
 		close(c.validationChan)
+		close(c.ledgerChan)
 		close(c.errorChan)
 		close(c.readLoopStopped)
 	}()
@@ -240,6 +277,23 @@ func (c *Client) readLoop(ctx context.Context) {
 			}
 
 			sendContext(ctx, c.validationChan, validationMessage)
+
+		case messageTypeLedgerClosed:
+			//nolint:staticcheck
+			// Explicit "status != true" check makes it clear that true represents an active subscription.
+			if status, _ := c.subscriptions.Load(messageTypeLedgerClosed); status != true {
+				// Subscription is absent or pending, nothing to do.
+				continue
+			}
+
+			var ledgerClosedMessage MessageLedgerClosed
+			if err := json.Unmarshal(message, &ledgerClosedMessage); err != nil {
+				err := fmt.Errorf("failed to unmarshal %s message: %w", xrplMessageType, err)
+				sendContext(ctx, c.errorChan, err)
+				continue
+			}
+
+			sendContext(ctx, c.ledgerChan, ledgerClosedMessage)
 
 		default:
 			err := fmt.Errorf("message of unknown type received: %s", xrplMessageType)
