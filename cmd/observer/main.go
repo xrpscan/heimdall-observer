@@ -67,40 +67,22 @@ func main() {
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
-	// Create Kafka Producer for the validations topic.
-	kProducerValidations, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
+	// Create the Kafka Producer.
+	kafkaProducer, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
 		Brokers:    conf.Kafka.Brokers,
 		Username:   conf.Kafka.Username,
 		Password:   conf.Kafka.Password,
 		CACertPath: conf.Kafka.CACertPath,
-		Topic:      conf.Kafka.ValidationsTopic,
 		Logger:     slog.Default(),
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create kafka producer for validations", "error", err)
+		slog.ErrorContext(ctx, "failed to create the kafka producer", "error", err)
 		return
 	}
 
-	// Register validations producer for cleanup.
-	reg.Register("kafka-validations-producer", kProducerValidations)
-
-	// Create Kafka Producer for the ledger topic.
-	// TODO: Use single producer instance.
-	kProducerLedger, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
-		Brokers:    conf.Kafka.Brokers,
-		Username:   conf.Kafka.Username,
-		Password:   conf.Kafka.Password,
-		CACertPath: conf.Kafka.CACertPath,
-		Topic:      conf.Kafka.LedgerTopic,
-		Logger:     slog.Default(),
-	})
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to create kafka producer for ledger", "error", err)
-		return
-	}
-
-	// Register ledger producer for cleanup.
-	reg.Register("kafka-ledger-producer", kProducerLedger)
+	// Register the Kafka Producer for cleanup.
+	reg.Register("kafka-producer", kafkaProducer)
+	slog.InfoContext(ctx, "successfully connected with kafka", "brokers", conf.Kafka.Brokers)
 
 	// Create http server and start listening.
 	setupHttpServer(ctx, cancel, conf, reg)
@@ -115,8 +97,8 @@ func main() {
 	// The main long-running processes of the application.
 	startVSP(ctx, conf, reg, validationStreamChan, embedded)
 	startLSP(ctx, conf, reg, ledgerStreamChan, embedded)
-	startVKS(ctx, conf, reg, embedded, kProducerValidations.Produce)
-	startLKS(ctx, conf, reg, embedded, kProducerLedger.Produce)
+	startVKS(ctx, conf, reg, embedded, kafkaProducer.ProducerWithTopic(conf.Kafka.ValidationsTopic))
+	startLKS(ctx, conf, reg, embedded, kafkaProducer.ProducerWithTopic(conf.Kafka.LedgerTopic))
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()

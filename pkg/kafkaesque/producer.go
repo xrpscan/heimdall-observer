@@ -10,7 +10,7 @@ import (
 
 // Producer represents a generic Kafka Producer.
 type Producer interface {
-	Produce(ctx context.Context, payload []byte, headers map[string]string) error
+	Produce(ctx context.Context, topic string, payload []byte, headers map[string]string) error
 	Close(ctx context.Context) error
 }
 
@@ -25,7 +25,6 @@ type ProducerParams struct {
 	Username   string
 	Password   string
 	CACertPath string
-	Topic      string
 
 	Logger Logger
 }
@@ -40,7 +39,6 @@ func NewFranzGoProducer(ctx context.Context, params ProducerParams) (*FranzGoPro
 	// Common config.
 	opts := []kgo.Opt{
 		kgo.SeedBrokers(params.Brokers...),
-		kgo.DefaultProduceTopic(params.Topic),
 		kgo.RecordPartitioner(kgo.RoundRobinPartitioner()),
 		// franz-go already has sensible defaults for configs like RetryCount and RetryBackoff.
 	}
@@ -80,7 +78,7 @@ func NewFranzGoProducer(ctx context.Context, params ProducerParams) (*FranzGoPro
 }
 
 func (f *FranzGoProducer) Produce(
-	ctx context.Context, payload []byte, headers map[string]string,
+	ctx context.Context, topic string, payload []byte, headers map[string]string,
 ) error {
 	// Form message.
 	record := kgo.SliceRecord(payload)
@@ -88,12 +86,24 @@ func (f *FranzGoProducer) Produce(
 		record.Headers = append(record.Headers, kgo.RecordHeader{Key: key, Value: []byte(value)})
 	}
 
+	// Set the topic to be used.
+	record.Topic = topic
+
 	// Produce.
 	if err := f.client.ProduceSync(ctx, record).FirstErr(); err != nil {
 		return fmt.Errorf("failed to produce message: %w", err)
 	}
 
 	return nil
+}
+
+// ProducerWithTopic returns a function that produces all messages to the given topic.
+func (f *FranzGoProducer) ProducerWithTopic(
+	topic string,
+) func(context.Context, []byte, map[string]string) error {
+	return func(ctx context.Context, b []byte, m map[string]string) error {
+		return f.Produce(ctx, topic, b, m)
+	}
 }
 
 func (f *FranzGoProducer) Close(_ context.Context) error {
