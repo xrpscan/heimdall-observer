@@ -25,6 +25,7 @@ type Config struct {
 		Password         string   `json:"password"`
 		CACertPath       string   `json:"caCertPath"`
 		ValidationsTopic string   `json:"validationsTopic"`
+		LedgerTopic      string   `json:"ledgerTopic"`
 	} `json:"kafka"`
 
 	Logger struct {
@@ -48,10 +49,15 @@ type Config struct {
 		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
 	} `json:"ledgerStreamProcessor"`
 
-	DatabaseKafkaSynchronizer struct {
+	ValidationKafkaSynchronizer struct {
 		MaxBatchSize    int `json:"maxBatchSize"`
 		PollIntervalSec int `json:"pollIntervalSec"`
-	} `json:"databaseKafkaSynchronizer"`
+	} `json:"validationKafkaSynchronizer"`
+
+	LedgerKafkaSynchronizer struct {
+		MaxBatchSize    int `json:"maxBatchSize"`
+		PollIntervalSec int `json:"pollIntervalSec"`
+	} `json:"ledgerKafkaSynchronizer"`
 }
 
 // Load config from the given JSON file.
@@ -95,6 +101,9 @@ func validate(conf Config) error {
 	if conf.Kafka.ValidationsTopic == "" {
 		return fmt.Errorf("kafka.validationsTopic is required")
 	}
+	if conf.Kafka.LedgerTopic == "" {
+		return fmt.Errorf("kafka.ledgerTopic is required")
+	}
 
 	if conf.Logger.Level == "" {
 		return fmt.Errorf("logger.level is required")
@@ -118,11 +127,18 @@ func validate(conf Config) error {
 		return fmt.Errorf("ledgerStreamProcessor.autoFlushDelaySec is required")
 	}
 
-	if conf.DatabaseKafkaSynchronizer.MaxBatchSize < 1 {
-		return fmt.Errorf("databaseKafkaSynchronizer.maxBatchSize is required")
+	if conf.ValidationKafkaSynchronizer.MaxBatchSize < 1 {
+		return fmt.Errorf("validationKafkaSynchronizer.maxBatchSize is required")
 	}
-	if conf.DatabaseKafkaSynchronizer.PollIntervalSec < 1 {
-		return fmt.Errorf("databaseKafkaSynchronizer.pollIntervalSec is required")
+	if conf.ValidationKafkaSynchronizer.PollIntervalSec < 1 {
+		return fmt.Errorf("validationKafkaSynchronizer.pollIntervalSec is required")
+	}
+
+	if conf.LedgerKafkaSynchronizer.MaxBatchSize < 1 {
+		return fmt.Errorf("ledgerKafkaSynchronizer.maxBatchSize is required")
+	}
+	if conf.LedgerKafkaSynchronizer.PollIntervalSec < 1 {
+		return fmt.Errorf("ledgerKafkaSynchronizer.pollIntervalSec is required")
 	}
 
 	return nil

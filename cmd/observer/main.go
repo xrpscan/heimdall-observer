@@ -67,8 +67,8 @@ func main() {
 	slog.InfoContext(ctx, "successfully connected to the embedded database",
 		"path", conf.Database.FilePath)
 
-	// Create Kafka Producer.
-	kafkaProducer, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
+	// Create Kafka Producer for the validations topic.
+	kProducerValidations, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
 		Brokers:    conf.Kafka.Brokers,
 		Username:   conf.Kafka.Username,
 		Password:   conf.Kafka.Password,
@@ -77,13 +77,30 @@ func main() {
 		Logger:     slog.Default(),
 	})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create kafka producer", "error", err)
+		slog.ErrorContext(ctx, "failed to create kafka producer for validations", "error", err)
 		return
 	}
 
-	// Register Kafka Producer for cleanup.
-	reg.Register("kafka-producer", kafkaProducer)
-	slog.InfoContext(ctx, "successfully connected to Kafka", "brokers", conf.Kafka.Brokers)
+	// Register validations producer for cleanup.
+	reg.Register("kafka-validations-producer", kProducerValidations)
+
+	// Create Kafka Producer for the ledger topic.
+	// TODO: Use single producer instance.
+	kProducerLedger, err := kafkaesque.NewFranzGoProducer(ctx, kafkaesque.ProducerParams{
+		Brokers:    conf.Kafka.Brokers,
+		Username:   conf.Kafka.Username,
+		Password:   conf.Kafka.Password,
+		CACertPath: conf.Kafka.CACertPath,
+		Topic:      conf.Kafka.LedgerTopic,
+		Logger:     slog.Default(),
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to create kafka producer for ledger", "error", err)
+		return
+	}
+
+	// Register ledger producer for cleanup.
+	reg.Register("kafka-ledger-producer", kProducerLedger)
 
 	// Create http server and start listening.
 	setupHttpServer(ctx, cancel, conf, reg)
@@ -98,7 +115,8 @@ func main() {
 	// The main long-running processes of the application.
 	startVSP(ctx, conf, reg, validationStreamChan, embedded)
 	startLSP(ctx, conf, reg, ledgerStreamChan, embedded)
-	startDKS(ctx, conf, reg, embedded, kafkaProducer.Produce)
+	startVKS(ctx, conf, reg, embedded, kProducerValidations.Produce)
+	startLKS(ctx, conf, reg, embedded, kProducerLedger.Produce)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
 	<-ctx.Done()
@@ -223,28 +241,54 @@ func startLSP(
 		"maxBatchSize", mbs, "autoFlushDelay", afd)
 }
 
-// startDKS starts and registers the Database-Kafka Synchronizer.
-func startDKS(
+// startVKS starts and registers the Validation table -> Kafka Synchronizer.
+func startVKS(
 	ctx context.Context, conf config.Config, reg *registry.Registry,
 	embedded store.Client, kafkaProducer proc.ProducerFunc,
 ) {
 	// Parse relevant config.
-	mbs := conf.DatabaseKafkaSynchronizer.MaxBatchSize
-	pin := time.Duration(conf.DatabaseKafkaSynchronizer.PollIntervalSec) * time.Second
+	mbs := conf.ValidationKafkaSynchronizer.MaxBatchSize
+	pin := time.Duration(conf.ValidationKafkaSynchronizer.PollIntervalSec) * time.Second
 
-	// Instantiate the database -> kafka synchronizer.
-	dks := proc.NewDatabaseKafkaSynchronizer(
+	// Instantiate the validation table -> kafka synchronizer.
+	vks := proc.NewDatabaseKafkaSynchronizer(
 		func(ctx context.Context) ([]store.ValidationMessageRow, error) {
 			return embedded.ListValidationMessages(ctx, mbs)
 		},
 		pin, embedded.DeleteValidationMessages, kafkaProducer,
 	)
 
-	// DKS is intentionally registered after the embedded database and the Kafka producer, since
-	// they should close after DKS.
-	reg.Register("database-kafka-synchronizer", dks)
+	// VKS is intentionally registered after the embedded database and the Kafka producer, since
+	// they should close after VKS.
+	reg.Register("validation-kafka-synchronizer", vks)
 
 	// Start synchronizing.
-	go dks.Start(ctx)
-	slog.InfoContext(ctx, "starting database-kafka synchronization")
+	go vks.Start(ctx)
+	slog.InfoContext(ctx, "starting validation-kafka synchronization")
+}
+
+// startLKS starts and registers the Ledger table -> Kafka Synchronizer.
+func startLKS(
+	ctx context.Context, conf config.Config, reg *registry.Registry,
+	embedded store.Client, kafkaProducer proc.ProducerFunc,
+) {
+	// Parse relevant config.
+	mbs := conf.LedgerKafkaSynchronizer.MaxBatchSize
+	pin := time.Duration(conf.LedgerKafkaSynchronizer.PollIntervalSec) * time.Second
+
+	// Instantiate the ledger table -> kafka synchronizer.
+	lks := proc.NewDatabaseKafkaSynchronizer(
+		func(ctx context.Context) ([]store.LedgerMessageRow, error) {
+			return embedded.ListLedgerMessages(ctx, mbs)
+		},
+		pin, embedded.DeleteLedgerMessages, kafkaProducer,
+	)
+
+	// LKS is intentionally registered after the embedded database and the Kafka producer, since
+	// they should close after LKS.
+	reg.Register("ledger-kafka-synchronizer", lks)
+
+	// Start synchronizing.
+	go lks.Start(ctx)
+	slog.InfoContext(ctx, "starting ledger-kafka synchronization")
 }

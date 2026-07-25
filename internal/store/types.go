@@ -15,6 +15,13 @@ type ValidationMessageRow struct {
 	CreatedAt Timestamp
 }
 
+// LedgerMessageRow is the schema of a single row in the "ledger" table.
+type LedgerMessageRow struct {
+	ID        int
+	Message   xrpld.MessageLedgerClosed
+	CreatedAt Timestamp
+}
+
 // Timestamp represents an epoch timestamp that gets stored in the database in TIMESTAMP format.
 type Timestamp int64
 

@@ -12,7 +12,8 @@
     "username": "something",
     "password": "secret",
     "caCertPath": "/path/to/ca/cert",
-    "validationsTopic": "your-validations-topic"
+    "validationsTopic": "your-validations-topic",
+    "ledgerTopic": "your-ledger-topic"
   },
   "logger": {
     "filePath": "./logs/observer.log",
@@ -24,10 +25,18 @@
   },
   "validationStreamProcessor": {
     "maxBatchSize": 50,
-    "autoFlushDelaySec": 30
+    "autoFlushDelaySec": 10
   },
-  "databaseKafkaSynchronizer": {
+  "ledgerStreamProcessor": {
+    "maxBatchSize": 1,
+    "autoFlushDelaySec": 10
+  },
+  "validationKafkaSynchronizer": {
     "maxBatchSize": 50,
-    "pollIntervalSec": 30
+    "pollIntervalSec": 1
+  },
+  "ledgerKafkaSynchronizer": {
+    "maxBatchSize": 4,
+    "pollIntervalSec": 10
   }
 }

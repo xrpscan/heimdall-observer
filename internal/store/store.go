@@ -26,4 +26,11 @@ type Client interface {
 	// BulkInsertLedgerMessages allows inserting multiple ledgerClosed messages into the DB.
 	// A bulk insert helps because the caller can insert in batches if their message influx is high.
 	BulkInsertLedgerMessages(ctx context.Context, messages []xrpld.MessageLedgerClosed) error
+
+	// ListLedgerMessages returns ledgerClosed messages, oldest first. The limit parameter
+	// controls the max number of messages that can be returned.
+	ListLedgerMessages(ctx context.Context, limit int) ([]LedgerMessageRow, error)
+
+	// DeleteLedgerMessages deletes the given ledgerClosed messages from the database.
+	DeleteLedgerMessages(ctx context.Context, messages []LedgerMessageRow) error
 }
