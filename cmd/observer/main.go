@@ -179,7 +179,8 @@ func startVSP(
 	afd := time.Duration(conf.ValidationStreamProcessor.AutoFlushDelaySec) * time.Second
 
 	// Instantiate the validation stream processor.
-	vsp := proc.NewValidationStreamProcessor(validationStreamChan, embedded, mbs, afd)
+	vsp := proc.NewStreamProcessor("validations", validationStreamChan,
+		embedded.BulkInsertValidationMessages, mbs, afd)
 
 	// VSP is registered after the embedded database so it closes before the database.
 	// This is done to make sure that database is running while VSP runs its flush operations.

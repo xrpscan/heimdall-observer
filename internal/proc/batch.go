@@ -7,8 +7,8 @@ import (
 	"sync"
 )
 
-// bulkOperation represents any operation that accepts a collection of items to process.
-type bulkOperation[T any] func(context.Context, []T) error
+// BulkOperation represents any operation that accepts a collection of items to process.
+type BulkOperation[T any] func(context.Context, []T) error
 
 // batchProcessor is an abstraction over a bulkOperation to achieve efficient batch processing.
 //
@@ -23,11 +23,11 @@ type batchProcessor[T any] struct {
 	maxBatchSize int
 	itemsMutex   sync.RWMutex
 	items        []T
-	operation    bulkOperation[T]
+	operation    BulkOperation[T]
 }
 
 // newBatchProcessor returns a new batchProcessor instance.
-func newBatchProcessor[T any](maxBatchSize int, operation bulkOperation[T]) *batchProcessor[T] {
+func newBatchProcessor[T any](maxBatchSize int, operation BulkOperation[T]) *batchProcessor[T] {
 	return &batchProcessor[T]{
 		maxBatchSize: maxBatchSize,
 		itemsMutex:   sync.RWMutex{},
