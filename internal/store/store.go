@@ -20,4 +20,10 @@ type Client interface {
 
 	// DeleteValidationMessages deletes the validation messages whose ID matches one of the given ids.
 	DeleteValidationMessages(ctx context.Context, ids []int) error
+
+	// ---------------------------------------------------------------------------------------------
+
+	// BulkInsertLedgerMessages allows inserting multiple ledgerClosed messages into the DB.
+	// A bulk insert helps because the caller can insert in batches if their message influx is high.
+	BulkInsertLedgerMessages(ctx context.Context, messages []xrpld.MessageLedgerClosed) error
 }

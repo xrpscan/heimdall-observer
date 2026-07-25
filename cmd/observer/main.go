@@ -88,15 +88,16 @@ func main() {
 	// Create http server and start listening.
 	setupHttpServer(ctx, cancel, conf, reg)
 
-	// Connect with xrpld and subscribe to the validations stream.
-	validationStreamChan, err := setupXRPL(ctx, cancel, conf, reg)
+	// Connect with xrpld and subscribe to the streams.
+	validationStreamChan, ledgerStreamChan, err := setupXRPL(ctx, cancel, conf, reg)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to setup xrpl", "error", err)
 		return
 	}
 
-	// The two main long-running processes of the application.
+	// The main long-running processes of the application.
 	startVSP(ctx, conf, reg, validationStreamChan, embedded)
+	startLSP(ctx, conf, reg, ledgerStreamChan, embedded)
 	startDKS(ctx, conf, reg, embedded, kafkaProducer.Produce)
 
 	// Block until the app is interrupted or a process calls the CancelFunc.
@@ -132,11 +133,11 @@ func setupHttpServer(
 // caller to access it.
 func setupXRPL(
 	ctx context.Context, cancel context.CancelFunc, conf config.Config, reg *registry.Registry,
-) (<-chan xrpld.MessageValidationReceived, error) {
+) (<-chan xrpld.MessageValidationReceived, <-chan xrpld.MessageLedgerClosed, error) {
 	// Initiate xrpld connection.
 	xClient, err := xrpld.NewClient(ctx, conf.XRPL.Addr)
 	if err != nil {
-		return nil, fmt.Errorf("error in xrpld.NewClient call: %w", err)
+		return nil, nil, fmt.Errorf("error in xrpld.NewClient call: %w", err)
 	}
 
 	// Register the xrpl client for graceful closure.
@@ -159,14 +160,19 @@ func setupXRPL(
 		}
 	}()
 
-	// Subscribe to xrpld validation stream.
 	validationStreamChan, err := xClient.SubscribeValidationStream(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to xrpld validation stream: %w", err)
+		return nil, nil, fmt.Errorf("failed to subscribe to xrpld validation stream: %w", err)
 	}
-
 	slog.InfoContext(ctx, "successfully subscribed to the xrpld validation stream")
-	return validationStreamChan, nil
+
+	ledgerStreamChan, err := xClient.SubscribeLedgerStream(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to subscribe to xrpld ledger stream: %w", err)
+	}
+	slog.InfoContext(ctx, "successfully subscribed to the xrpld ledger stream")
+
+	return validationStreamChan, ledgerStreamChan, nil
 }
 
 // startVSP starts and registers the Validation Stream Processor.
@@ -190,6 +196,30 @@ func startVSP(
 	go vsp.Start(ctx)
 
 	slog.InfoContext(ctx, "starting the validation stream processor",
+		"maxBatchSize", mbs, "autoFlushDelay", afd)
+}
+
+// startLSP starts and registers the Ledger Stream Processor.
+func startLSP(
+	ctx context.Context, conf config.Config, reg *registry.Registry,
+	ledgerStreamChan <-chan xrpld.MessageLedgerClosed, embedded store.Client,
+) {
+	// Parse relevant config.
+	mbs := conf.LedgerStreamProcessor.MaxBatchSize
+	afd := time.Duration(conf.LedgerStreamProcessor.AutoFlushDelaySec) * time.Second
+
+	// Instantiate the stream processor.
+	lsp := proc.NewStreamProcessor("ledger", ledgerStreamChan,
+		embedded.BulkInsertLedgerMessages, mbs, afd)
+
+	// LSP is registered after the embedded database so it closes before the database.
+	// This is done to make sure that database is running while LSP runs its flush operations.
+	reg.Register("ledger-stream-processor", lsp)
+
+	// Start reading the stream.
+	go lsp.Start(ctx)
+
+	slog.InfoContext(ctx, "starting the ledger stream processor",
 		"maxBatchSize", mbs, "autoFlushDelay", afd)
 }
 

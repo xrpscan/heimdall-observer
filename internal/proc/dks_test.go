@@ -29,14 +29,14 @@ func TestDKS_HappyPath(t *testing.T) {
 	listed := false
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			if listed {
 				return nil, nil
 			}
 			listed = true
 			return testRows(), nil
 		},
-		deleteFn: func(_ context.Context, ids []int) error {
+		deleteValidationFn: func(_ context.Context, ids []int) error {
 			deletedIDs = append(deletedIDs, ids...)
 			return nil
 		},
@@ -70,10 +70,10 @@ func TestDKS_EmptyDB(t *testing.T) {
 	deleteCalled := false
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			return nil, nil
 		},
-		deleteFn: func(_ context.Context, _ []int) error {
+		deleteValidationFn: func(_ context.Context, _ []int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -105,10 +105,10 @@ func TestDKS_ListError(t *testing.T) {
 	deleteCalled := false
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			return nil, errors.New("db read failed")
 		},
-		deleteFn: func(_ context.Context, _ []int) error {
+		deleteValidationFn: func(_ context.Context, _ []int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -139,10 +139,10 @@ func TestDKS_ProduceError(t *testing.T) {
 	deleteCalled := false
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			return testRows(), nil
 		},
-		deleteFn: func(_ context.Context, _ []int) error {
+		deleteValidationFn: func(_ context.Context, _ []int) error {
 			deleteCalled = true
 			return nil
 		},
@@ -171,10 +171,10 @@ func TestDKS_DeleteError(t *testing.T) {
 	producerCalled := false
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			return testRows(), nil
 		},
-		deleteFn: func(_ context.Context, _ []int) error {
+		deleteValidationFn: func(_ context.Context, _ []int) error {
 			return errors.New("delete failed")
 		},
 	}
@@ -201,10 +201,10 @@ func TestDKS_StartExitsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockStoreClient{
-		listFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
+		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
 			return nil, nil
 		},
-		deleteFn: func(_ context.Context, _ []int) error {
+		deleteValidationFn: func(_ context.Context, _ []int) error {
 			return nil
 		},
 	}

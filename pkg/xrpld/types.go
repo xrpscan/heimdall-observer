@@ -2,6 +2,8 @@ package xrpld
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 )
 
 const (
@@ -94,7 +96,7 @@ type MessageLedgerClosed struct {
 	// The identifying hash of the ledger version that was closed.
 	LedgerHash string `json:"ledger_hash"`
 	// The ledger index of the ledger that was closed.
-	LedgerIndex string `json:"ledger_index"`
+	LedgerIndex any `json:"ledger_index"`
 	// The time this ledger was closed, in seconds since the Ripple Epoch.
 	LedgerTime uint64 `json:"ledger_time"`
 	// The XRPL network of this stream.
@@ -114,6 +116,26 @@ type MessageLedgerClosed struct {
 	// server is not connected to the network, or if it is connected but has not yet obtained
 	// a ledger from the network.
 	ValidatedLedgers string `json:"validated_ledgers,omitempty"`
+}
+
+// LedgerIndexParsed parses the ledger index field to int.
+func (m MessageLedgerClosed) LedgerIndexParsed() (int64, error) {
+	switch x := m.LedgerIndex.(type) {
+	case int64:
+		return x, nil
+	case int:
+		return int64(x), nil
+	case float64:
+		return int64(x), nil
+	case string:
+		parsed, err := strconv.Atoi(x)
+		if err != nil {
+			return 0, fmt.Errorf("invalid number: %s", x)
+		}
+		return int64(parsed), nil
+	default:
+		return 0, fmt.Errorf("unrecognized type: %v (%T)", x, x)
+	}
 }
 
 // subscriptionRequest is the schema of a subscription request for xrpld.

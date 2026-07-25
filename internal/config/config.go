@@ -43,6 +43,11 @@ type Config struct {
 		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
 	} `json:"validationStreamProcessor"`
 
+	LedgerStreamProcessor struct {
+		MaxBatchSize      int `json:"maxBatchSize"`
+		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
+	} `json:"ledgerStreamProcessor"`
+
 	DatabaseKafkaSynchronizer struct {
 		MaxBatchSize    int `json:"maxBatchSize"`
 		PollIntervalSec int `json:"pollIntervalSec"`
@@ -104,6 +109,13 @@ func validate(conf Config) error {
 	}
 	if conf.ValidationStreamProcessor.AutoFlushDelaySec < 1 {
 		return fmt.Errorf("validationStreamProcessor.autoFlushDelaySec is required")
+	}
+
+	if conf.LedgerStreamProcessor.MaxBatchSize < 1 {
+		return fmt.Errorf("ledgerStreamProcessor.maxBatchSize is required")
+	}
+	if conf.LedgerStreamProcessor.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("ledgerStreamProcessor.autoFlushDelaySec is required")
 	}
 
 	if conf.DatabaseKafkaSynchronizer.MaxBatchSize < 1 {

@@ -69,7 +69,7 @@ func (s *StreamProcessor[T]) Start(ctx context.Context) {
 			if count, err := s.batchProc.addItem(ctx, item); err != nil {
 				clog.ErrorContext(ctx, "failed to process batch", "error", err)
 			} else if count > 0 {
-				clog.DebugContext(ctx, "successfully processed batch", "count", count)
+				clog.InfoContext(ctx, "successfully processed batch", "count", count)
 			}
 		}
 	}
