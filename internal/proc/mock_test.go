@@ -12,7 +12,7 @@ type mockStoreClient struct {
 	bulkInsertValidationFn func(ctx context.Context, messages []xrpld.MessageValidationReceived) error
 	bulkInsertLedgerFn     func(ctx context.Context, messages []xrpld.MessageLedgerClosed) error
 	listValidationFn       func(ctx context.Context, limit int) ([]store.ValidationMessageRow, error)
-	deleteValidationFn     func(ctx context.Context, ids []int) error
+	deleteValidationFn     func(ctx context.Context, messages []store.ValidationMessageRow) error
 }
 
 func (m *mockStoreClient) BulkInsertValidationMessages(ctx context.Context, messages []xrpld.MessageValidationReceived) error {
@@ -27,6 +27,6 @@ func (m *mockStoreClient) ListValidationMessages(ctx context.Context, limit int)
 	return m.listValidationFn(ctx, limit)
 }
 
-func (m *mockStoreClient) DeleteValidationMessages(ctx context.Context, ids []int) error {
-	return m.deleteValidationFn(ctx, ids)
+func (m *mockStoreClient) DeleteValidationMessages(ctx context.Context, messages []store.ValidationMessageRow) error {
+	return m.deleteValidationFn(ctx, messages)
 }

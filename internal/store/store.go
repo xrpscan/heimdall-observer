@@ -18,8 +18,8 @@ type Client interface {
 	// controls the max number of messages that can be returned.
 	ListValidationMessages(ctx context.Context, limit int) ([]ValidationMessageRow, error)
 
-	// DeleteValidationMessages deletes the validation messages whose ID matches one of the given ids.
-	DeleteValidationMessages(ctx context.Context, ids []int) error
+	// DeleteValidationMessages deletes the given validation messages from the database.
+	DeleteValidationMessages(ctx context.Context, messages []ValidationMessageRow) error
 
 	// ---------------------------------------------------------------------------------------------
 

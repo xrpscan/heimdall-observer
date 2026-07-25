@@ -233,7 +233,12 @@ func startDKS(
 	pin := time.Duration(conf.DatabaseKafkaSynchronizer.PollIntervalSec) * time.Second
 
 	// Instantiate the database -> kafka synchronizer.
-	dks := proc.NewDatabaseKafkaSynchronizer(embedded, kafkaProducer, mbs, pin)
+	dks := proc.NewDatabaseKafkaSynchronizer(
+		func(ctx context.Context) ([]store.ValidationMessageRow, error) {
+			return embedded.ListValidationMessages(ctx, mbs)
+		},
+		pin, embedded.DeleteValidationMessages, kafkaProducer,
+	)
 
 	// DKS is intentionally registered after the embedded database and the Kafka producer, since
 	// they should close after DKS.

@@ -5,37 +5,41 @@ import (
 	"encoding/json"
 	"log/slog"
 	"time"
-
-	"github.com/xrpscan/heimdall-observer/internal/store"
-	"github.com/xrpscan/heimdall-observer/pkg/xrpld"
 )
+
+// PollFunc represents an operation that fetches a list of records.
+type PollFunc[T any] func(context.Context) ([]T, error)
+
+// DeleteFunc represents an operation that deletes the given records.
+type DeleteFunc[T any] func(context.Context, []T) error
 
 // ProducerFunc represents a Kafka producer.
 type ProducerFunc func(context.Context, []byte, map[string]string) error
 
 // DatabaseKafkaSynchronizer is an abstraction to poll the given database for records, produce them
 // to Kafka using the given client, and then cleanup those records from the database.
-type DatabaseKafkaSynchronizer struct {
-	embedded     store.Client
-	producer     ProducerFunc
-	maxBatchSize int
+type DatabaseKafkaSynchronizer[T any] struct {
+	pollFunc     PollFunc[T]
 	pollInterval time.Duration
+	deleteFunc   DeleteFunc[T]
+	producer     ProducerFunc
 }
 
 // NewDatabaseKafkaSynchronizer returns a new instance of [DatabaseKafkaSynchronizer].
-func NewDatabaseKafkaSynchronizer(
-	embedded store.Client, producer ProducerFunc, maxBatchSize int, pollInterval time.Duration,
-) *DatabaseKafkaSynchronizer {
-	return &DatabaseKafkaSynchronizer{
-		embedded:     embedded,
-		producer:     producer,
-		maxBatchSize: maxBatchSize,
+func NewDatabaseKafkaSynchronizer[T any](
+	pollFunc PollFunc[T], pollInterval time.Duration,
+	deleteFunc DeleteFunc[T], producer ProducerFunc,
+) *DatabaseKafkaSynchronizer[T] {
+	return &DatabaseKafkaSynchronizer[T]{
+		pollFunc:     pollFunc,
 		pollInterval: pollInterval,
+		deleteFunc:   deleteFunc,
+		producer:     producer,
 	}
 }
 
 // Start synchronization. This is a blocking call.
-func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
+func (d *DatabaseKafkaSynchronizer[T]) Start(ctx context.Context) {
 	// Ticker for polling the embedded DB.
 	ticker := time.NewTicker(d.pollInterval)
 	defer ticker.Stop()
@@ -46,9 +50,9 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 			return
 		case <-ticker.C:
 			// Poll database.
-			rows, err := d.embedded.ListValidationMessages(ctx, d.maxBatchSize)
+			rows, err := d.pollFunc(ctx)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to list validation messages from db", "error", err)
+				slog.ErrorContext(ctx, "failed to poll for records", "error", err)
 				continue
 			}
 
@@ -59,16 +63,10 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 				continue
 			}
 
-			// Only the validation message is produced to Kafka, not the whole row.
-			messages := make([]xrpld.MessageValidationReceived, len(rows))
-			for i, row := range rows {
-				messages[i] = row.Message
-			}
-
 			// Marshal messages for Kafka production.
-			messagesBytes, err := json.Marshal(messages)
+			messagesBytes, err := json.Marshal(rows)
 			if err != nil {
-				slog.ErrorContext(ctx, "failed to marshal validation messages", "error", err)
+				slog.ErrorContext(ctx, "failed to marshal records", "error", err)
 				continue
 			}
 
@@ -77,10 +75,10 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 				slog.ErrorContext(ctx, "failed to produce messages to kafka", "error", err)
 				continue
 			}
-			slog.DebugContext(ctx, "successfully produced batch to kafka", "count", count)
+			slog.InfoContext(ctx, "successfully produced batch to kafka", "count", count)
 
 			// Clean from database.
-			if err := deleteValidationMessages(ctx, d.embedded, rows); err != nil {
+			if err := d.deleteFunc(ctx, rows); err != nil {
 				slog.ErrorContext(ctx, "failed to delete produced messages from db", "error", err)
 				continue
 			}
@@ -93,18 +91,7 @@ func (d *DatabaseKafkaSynchronizer) Start(ctx context.Context) {
 //
 // Note that it does not unblock the Start call. The Start call is unblocked only when context
 // passed to it expires.
-func (d *DatabaseKafkaSynchronizer) Close(ctx context.Context) error {
+func (d *DatabaseKafkaSynchronizer[T]) Close(ctx context.Context) error {
 	// Nothing to close yet.
 	return nil
-}
-
-func deleteValidationMessages(
-	ctx context.Context, embedded store.Client, messages []store.ValidationMessageRow,
-) error {
-	ids := make([]int, len(messages))
-	for i, message := range messages {
-		ids[i] = message.ID
-	}
-
-	return embedded.DeleteValidationMessages(ctx, ids)
 }

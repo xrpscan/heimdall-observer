@@ -25,21 +25,20 @@ func TestDKS_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	var producedPayload []byte
-	var deletedIDs []int
+	var deletedRows []store.ValidationMessageRow
 	listed := false
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			if listed {
-				return nil, nil
-			}
-			listed = true
-			return testRows(), nil
-		},
-		deleteValidationFn: func(_ context.Context, ids []int) error {
-			deletedIDs = append(deletedIDs, ids...)
-			return nil
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		if listed {
+			return nil, nil
+		}
+		listed = true
+		return testRows(), nil
+	}
+
+	deleteFn := func(_ context.Context, rows []store.ValidationMessageRow) error {
+		deletedRows = append(deletedRows, rows...)
+		return nil
 	}
 
 	producer := func(_ context.Context, payload []byte, _ map[string]string) error {
@@ -47,7 +46,7 @@ func TestDKS_HappyPath(t *testing.T) {
 		return nil
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -60,7 +59,9 @@ func TestDKS_HappyPath(t *testing.T) {
 	require.NotEmpty(t, producedPayload)
 	require.Contains(t, string(producedPayload), "AAA")
 	require.Contains(t, string(producedPayload), "BBB")
-	require.Equal(t, []int{1, 2}, deletedIDs)
+	require.Len(t, deletedRows, 2)
+	require.Equal(t, 1, deletedRows[0].ID)
+	require.Equal(t, 2, deletedRows[1].ID)
 }
 
 func TestDKS_EmptyDB(t *testing.T) {
@@ -69,14 +70,13 @@ func TestDKS_EmptyDB(t *testing.T) {
 	producerCalled := false
 	deleteCalled := false
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			return nil, nil
-		},
-		deleteValidationFn: func(_ context.Context, _ []int) error {
-			deleteCalled = true
-			return nil
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		return nil, nil
+	}
+
+	deleteFn := func(_ context.Context, _ []store.ValidationMessageRow) error {
+		deleteCalled = true
+		return nil
 	}
 
 	producer := func(_ context.Context, _ []byte, _ map[string]string) error {
@@ -84,7 +84,7 @@ func TestDKS_EmptyDB(t *testing.T) {
 		return nil
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -104,14 +104,13 @@ func TestDKS_ListError(t *testing.T) {
 	producerCalled := false
 	deleteCalled := false
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			return nil, errors.New("db read failed")
-		},
-		deleteValidationFn: func(_ context.Context, _ []int) error {
-			deleteCalled = true
-			return nil
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		return nil, errors.New("db read failed")
+	}
+
+	deleteFn := func(_ context.Context, _ []store.ValidationMessageRow) error {
+		deleteCalled = true
+		return nil
 	}
 
 	producer := func(_ context.Context, _ []byte, _ map[string]string) error {
@@ -119,7 +118,7 @@ func TestDKS_ListError(t *testing.T) {
 		return nil
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -138,21 +137,20 @@ func TestDKS_ProduceError(t *testing.T) {
 
 	deleteCalled := false
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			return testRows(), nil
-		},
-		deleteValidationFn: func(_ context.Context, _ []int) error {
-			deleteCalled = true
-			return nil
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		return testRows(), nil
+	}
+
+	deleteFn := func(_ context.Context, _ []store.ValidationMessageRow) error {
+		deleteCalled = true
+		return nil
 	}
 
 	producer := func(_ context.Context, _ []byte, _ map[string]string) error {
 		return errors.New("kafka down")
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -170,13 +168,12 @@ func TestDKS_DeleteError(t *testing.T) {
 
 	producerCalled := false
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			return testRows(), nil
-		},
-		deleteValidationFn: func(_ context.Context, _ []int) error {
-			return errors.New("delete failed")
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		return testRows(), nil
+	}
+
+	deleteFn := func(_ context.Context, _ []store.ValidationMessageRow) error {
+		return errors.New("delete failed")
 	}
 
 	producer := func(_ context.Context, _ []byte, _ map[string]string) error {
@@ -184,7 +181,7 @@ func TestDKS_DeleteError(t *testing.T) {
 		return nil
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -200,20 +197,19 @@ func TestDKS_DeleteError(t *testing.T) {
 func TestDKS_StartExitsOnContextCancel(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockStoreClient{
-		listValidationFn: func(_ context.Context, _ int) ([]store.ValidationMessageRow, error) {
-			return nil, nil
-		},
-		deleteValidationFn: func(_ context.Context, _ []int) error {
-			return nil
-		},
+	pollFn := func(_ context.Context) ([]store.ValidationMessageRow, error) {
+		return nil, nil
+	}
+
+	deleteFn := func(_ context.Context, _ []store.ValidationMessageRow) error {
+		return nil
 	}
 
 	producer := func(_ context.Context, _ []byte, _ map[string]string) error {
 		return nil
 	}
 
-	dks := NewDatabaseKafkaSynchronizer(mock, producer, 10, testPollInterval)
+	dks := NewDatabaseKafkaSynchronizer(pollFn, testPollInterval, deleteFn, producer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

@@ -205,7 +205,7 @@ func TestDelete_Success(t *testing.T) {
 	}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
 
-	require.NoError(t, e.DeleteValidationMessages(ctx, []int{1, 2}))
+	require.NoError(t, e.DeleteValidationMessages(ctx, []ValidationMessageRow{{ID: 1}, {ID: 2}}))
 
 	rows, err := e.ListValidationMessages(ctx, 10)
 	require.NoError(t, err)
@@ -221,7 +221,7 @@ func TestDelete_NonExistentID(t *testing.T) {
 
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, []xrpld.MessageValidationReceived{{LedgerHash: "A"}}))
 
-	err := e.DeleteValidationMessages(ctx, []int{999})
+	err := e.DeleteValidationMessages(ctx, []ValidationMessageRow{{ID: 999}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected number of rows were deleted")
 }
@@ -235,7 +235,7 @@ func TestDelete_PartialMatch(t *testing.T) {
 	messages := []xrpld.MessageValidationReceived{{LedgerHash: "A"}, {LedgerHash: "B"}}
 	require.NoError(t, e.BulkInsertValidationMessages(ctx, messages))
 
-	err := e.DeleteValidationMessages(ctx, []int{1, 999})
+	err := e.DeleteValidationMessages(ctx, []ValidationMessageRow{{ID: 1}, {ID: 999}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected number of rows were deleted")
 }
@@ -255,11 +255,7 @@ func TestInsertListDelete_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 
-	ids := make([]int, len(rows))
-	for i, r := range rows {
-		ids[i] = r.ID
-	}
-	require.NoError(t, e.DeleteValidationMessages(ctx, ids))
+	require.NoError(t, e.DeleteValidationMessages(ctx, rows))
 
 	rows, err = e.ListValidationMessages(ctx, 10)
 	require.NoError(t, err)

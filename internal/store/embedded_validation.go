@@ -37,8 +37,10 @@ func (e *Embedded) BulkInsertValidationMessages(ctx context.Context, messages []
 }
 
 // DeleteValidationMessages implements [Client].
-func (e *Embedded) DeleteValidationMessages(ctx context.Context, ids []int) error {
-	query, args := e.queryDeleteValidationMessages(ids)
+func (e *Embedded) DeleteValidationMessages(
+	ctx context.Context, messages []ValidationMessageRow,
+) error {
+	query, args := e.queryDeleteValidationMessages(messages)
 
 	// Execute query.
 	result, err := e.db.ExecContext(ctx, query, args...)
@@ -52,8 +54,8 @@ func (e *Embedded) DeleteValidationMessages(ctx context.Context, ids []int) erro
 	}
 
 	// Verify that expected number of rows were deleted.
-	if int(aff) != len(ids) {
-		return fmt.Errorf("unexpected number of rows were deleted: %d, expected: %d", aff, len(ids))
+	if int(aff) != len(messages) {
+		return fmt.Errorf("unexpected number of rows were deleted: %d, expected: %d", aff, len(messages))
 	}
 
 	return nil
@@ -127,15 +129,15 @@ func (e *Embedded) queryBulkInsertValidationMessages(
 	return `INSERT INTO validations (message) VALUES ` + values + ";", args, nil
 }
 
-func (e *Embedded) queryDeleteValidationMessages(ids []int) (string, []any) {
-	args := make([]any, len(ids))
+func (e *Embedded) queryDeleteValidationMessages(messages []ValidationMessageRow) (string, []any) {
+	args := make([]any, len(messages))
 
 	var builder strings.Builder
-	builder.Grow(len(ids) * 5) // Reasonable buffer pre-allocation.
+	builder.Grow(len(messages) * 5) // Reasonable buffer pre-allocation.
 	builder.WriteString("(")
 
-	for i := range ids {
-		args[i] = ids[i]
+	for i := range messages {
+		args[i] = messages[i].ID
 		fmt.Fprintf(&builder, `$%d, `, i+1)
 	}
 
