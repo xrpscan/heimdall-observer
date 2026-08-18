@@ -1,6 +1,6 @@
 # Heimdall Observer
 
-XRPL validation stream observer. Connects to an xrpld node via WebSocket, batches validation messages into an embedded SQLite database, then produces them to Kafka.
+XRPL stream observer. Connects to an xrpld node via WebSocket, subscribes to the validation and ledger streams, batches incoming messages into an embedded SQLite database, then produces them to Kafka.
 
 ## Build & test
 
@@ -22,10 +22,10 @@ The binary accepts `-config <path>` (default: `config/config.json`).
 - `internal/config/` — JSON config loading and validation.
 - `internal/logger/` — slog setup with file logging (lumberjack rotation) and context-based attribute propagation.
 - `internal/rest/` — HTTP server, handler, and middleware stack (CORS, recovery, access log, body limit).
-- `internal/proc/` — stream processing. `ValidationStreamProcessor` batches messages and flushes to DB. `DatabaseKafkaSynchronizer` polls DB and produces to Kafka.
-- `internal/store/` — storage layer; `Client` interface with `Embedded` (SQLite + WAL mode) implementation.
-- `pkg/xrpld/` — WebSocket client for xrpld servers; handles subscriptions, request-response correlation, and graceful shutdown.
-- `pkg/kafkaesque/` — Kafka client wrapper using franz-go; supports plaintext and SCRAM-SHA-512 + TLS modes.
+- `internal/proc/` — stream processing. `StreamProcessor[T]` batches messages from any stream and flushes to DB. `DatabaseKafkaSynchronizer[T]` polls a DB table and produces to Kafka.
+- `internal/store/` — storage layer; `Client` interface with `Embedded` (SQLite + WAL mode) implementation. Split into per-entity files (`embedded_validation.go`, `embedded_ledger.go`).
+- `pkg/xrpld/` — WebSocket client for xrpld servers; handles subscriptions (validation and ledger streams), request-response correlation, and graceful shutdown.
+- `pkg/kafkaesque/` — Kafka client wrapper using franz-go; a single producer instance serves multiple topics via `ProducerWithTopic`. Supports plaintext and SCRAM-SHA-512 + TLS modes.
 - `pkg/registry/` — service registry for ordered graceful shutdown (closes in reverse registration order).
 - `pkg/httputils/` — HTTP response writing, typed errors, `ResponseWriterWithCode` wrapper.
 - `db/migrations/` — SQL migration files for golang-migrate.
