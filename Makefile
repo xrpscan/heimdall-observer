@@ -3,6 +3,8 @@ SHELL=/usr/bin/env bash
 application_name        = observer
 application_binary_name = observer
 
+database_dsn = 'sqlite3://data/observer.db'
+
 # Support both podman and docker.
 DOCKER=$(shell which podman || which docker || echo 'docker')
 
@@ -44,6 +46,17 @@ container:
 	@$(DOCKER) rm -f $(application_name)
 
 	@echo "################ Running new container ################"
-	@$(DOCKER) run --name $(application_name) --detach --publish 8080:8080 \
-        --volume $(PWD)/config/config.json:/service/config/config.json \
+	@$(DOCKER) run --name $(application_name) --detach --publish 9973:9973 \
+        --volume $(PWD)/config/config.docker.json:/service/config/config.json \
+        --volume $(HOME)/.secure-kafka/tls/ca-cert:/service/tls/ca-cert:ro \
+        --volume $(PWD)/data:/service/data:z \
+        --volume $(PWD)/logs:/service/logs:z \
         $(application_name):latest
+
+migrate-up:
+	@echo "+$@"
+	@migrate -verbose -path db/migrations -database $(database_dsn) up
+
+migrate-down:
+	@echo "+$@"
+	@migrate -verbose -path db/migrations -database $(database_dsn) down

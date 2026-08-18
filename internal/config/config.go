@@ -8,6 +8,10 @@ import (
 
 // Config encapsulates all config required by the application.
 type Config struct {
+	Database struct {
+		FilePath string `json:"filePath"`
+	} `json:"database"`
+
 	HttpServer struct {
 		Addr           string   `json:"addr"`
 		AllowedOrigins []string `json:"allowedOrigins"`
@@ -15,10 +19,45 @@ type Config struct {
 		CorsMaxAgeSec int `json:"corsMaxAgeSec"`
 	} `json:"httpServer"`
 
+	Kafka struct {
+		Brokers          []string `json:"brokers"`
+		Username         string   `json:"username"`
+		Password         string   `json:"password"`
+		CACertPath       string   `json:"caCertPath"`
+		ValidationsTopic string   `json:"validationsTopic"`
+		LedgerTopic      string   `json:"ledgerTopic"`
+	} `json:"kafka"`
+
 	Logger struct {
-		Level  string `json:"level"`
-		Pretty bool   `json:"pretty"`
+		// Leave empty for stdout logging.
+		FilePath string `json:"filePath"`
+		Level    string `json:"level"`
+		Pretty   bool   `json:"pretty"`
 	} `json:"logger"`
+
+	XRPL struct {
+		Addr string `json:"addr"`
+	} `json:"xrpl"`
+
+	ValidationStreamProcessor struct {
+		MaxBatchSize      int `json:"maxBatchSize"`
+		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
+	} `json:"validationStreamProcessor"`
+
+	LedgerStreamProcessor struct {
+		MaxBatchSize      int `json:"maxBatchSize"`
+		AutoFlushDelaySec int `json:"autoFlushDelaySec"`
+	} `json:"ledgerStreamProcessor"`
+
+	ValidationKafkaSynchronizer struct {
+		MaxBatchSize    int `json:"maxBatchSize"`
+		PollIntervalSec int `json:"pollIntervalSec"`
+	} `json:"validationKafkaSynchronizer"`
+
+	LedgerKafkaSynchronizer struct {
+		MaxBatchSize    int `json:"maxBatchSize"`
+		PollIntervalSec int `json:"pollIntervalSec"`
+	} `json:"ledgerKafkaSynchronizer"`
 }
 
 // Load config from the given JSON file.
@@ -42,18 +81,64 @@ func Load(jsonPath string) (Config, error) {
 
 // validate the loaded config.
 func validate(conf Config) error {
+	if conf.Database.FilePath == "" {
+		return fmt.Errorf("database.filePath is required")
+	}
+
 	if conf.HttpServer.Addr == "" {
-		return fmt.Errorf("http server address is required")
+		return fmt.Errorf("httpServer.addr is required")
 	}
 	if len(conf.HttpServer.AllowedOrigins) == 0 {
-		return fmt.Errorf("http server allowed origins are required")
+		return fmt.Errorf("httpServer.allowedOrigins are required")
 	}
-	if conf.HttpServer.CorsMaxAgeSec == 0 {
-		return fmt.Errorf("http server cors max age is required")
+	if conf.HttpServer.CorsMaxAgeSec < 1 {
+		return fmt.Errorf("httpServer.corsMaxAgeSec is required")
+	}
+
+	if len(conf.Kafka.Brokers) == 0 {
+		return fmt.Errorf("kafka.brokers are required")
+	}
+	if conf.Kafka.ValidationsTopic == "" {
+		return fmt.Errorf("kafka.validationsTopic is required")
+	}
+	if conf.Kafka.LedgerTopic == "" {
+		return fmt.Errorf("kafka.ledgerTopic is required")
 	}
 
 	if conf.Logger.Level == "" {
-		return fmt.Errorf("logger level is required")
+		return fmt.Errorf("logger.level is required")
+	}
+
+	if conf.XRPL.Addr == "" {
+		return fmt.Errorf("xrpl.addr is required")
+	}
+
+	if conf.ValidationStreamProcessor.MaxBatchSize < 1 {
+		return fmt.Errorf("validationStreamProcessor.maxBatchSize is required")
+	}
+	if conf.ValidationStreamProcessor.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("validationStreamProcessor.autoFlushDelaySec is required")
+	}
+
+	if conf.LedgerStreamProcessor.MaxBatchSize < 1 {
+		return fmt.Errorf("ledgerStreamProcessor.maxBatchSize is required")
+	}
+	if conf.LedgerStreamProcessor.AutoFlushDelaySec < 1 {
+		return fmt.Errorf("ledgerStreamProcessor.autoFlushDelaySec is required")
+	}
+
+	if conf.ValidationKafkaSynchronizer.MaxBatchSize < 1 {
+		return fmt.Errorf("validationKafkaSynchronizer.maxBatchSize is required")
+	}
+	if conf.ValidationKafkaSynchronizer.PollIntervalSec < 1 {
+		return fmt.Errorf("validationKafkaSynchronizer.pollIntervalSec is required")
+	}
+
+	if conf.LedgerKafkaSynchronizer.MaxBatchSize < 1 {
+		return fmt.Errorf("ledgerKafkaSynchronizer.maxBatchSize is required")
+	}
+	if conf.LedgerKafkaSynchronizer.PollIntervalSec < 1 {
+		return fmt.Errorf("ledgerKafkaSynchronizer.pollIntervalSec is required")
 	}
 
 	return nil

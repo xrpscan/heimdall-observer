@@ -2,16 +2,17 @@ package rest
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
-	"github.com/shivanshkc/observer/internal/logger"
-	"github.com/shivanshkc/observer/pkg/httputils"
+	"github.com/xrpscan/heimdall-observer/internal/logger"
+	"github.com/xrpscan/heimdall-observer/pkg/httputils"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -47,9 +48,12 @@ func TestRecoveryMiddleware(t *testing.T) {
 func TestAccessLoggerMiddleware(t *testing.T) {
 	// This test cannot run in parallel because it relies on the global logger object.
 
-	// Use a custom writer for logger output to verify access logs.
-	writer := &bytes.Buffer{}
-	logger.Init(writer, "info", true)
+	// Temporary file details for testing.
+	tempDir, fileName := t.TempDir(), uuid.NewString()+".log"
+	filePath := filepath.Join(tempDir, fileName)
+
+	closer := logger.Init(filePath, "info", true)
+	defer func() { _ = closer() }()
 
 	// Mock next handler.
 	expectedStatusCode := http.StatusOK
@@ -58,7 +62,7 @@ func TestAccessLoggerMiddleware(t *testing.T) {
 	})
 
 	// Mock request, response.
-	request := httptest.NewRequest(http.MethodGet, "https://observer.shivansh.io", nil)
+	request := httptest.NewRequest(http.MethodGet, "https://example.com", nil)
 	recorder := httptest.NewRecorder()
 
 	// Invoke the middleware.
@@ -79,9 +83,14 @@ func TestAccessLoggerMiddleware(t *testing.T) {
 	// Expect the correct response code.
 	require.Equal(t, expectedStatusCode, recorder.Code)
 
+	// Open the file again for verification.
+	tmpFileOpened, err := os.Open(filePath)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tmpFileOpened.Close()) }()
+
 	// Count number of log statements printed.
 	var actualLogCount int
-	for scanner := bufio.NewScanner(writer); scanner.Scan(); {
+	for scanner := bufio.NewScanner(tmpFileOpened); scanner.Scan(); {
 		actualLogCount++
 	}
 
